@@ -4,8 +4,8 @@ import { InvoicesController } from './invoices.controller';
 import { EventsModule } from '../events/events.module';
 
 @Module({
-  imports: [EventsModule],
-  controllers: [InvoicesController],
-  providers: [InvoicesService],
+                    imports: [EventsModule],
+                    controllers: [InvoicesController],
+                    providers: [InvoicesService],
 })
-export class InvoicesModule {}
+export class InvoicesModule { }

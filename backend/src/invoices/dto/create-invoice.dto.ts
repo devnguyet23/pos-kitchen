@@ -2,7 +2,12 @@ import { IsInt, IsString, IsOptional } from 'class-validator';
 
 export class CreateInvoiceDto {
   @IsInt()
-  tableId: number;
+  @IsOptional()
+  tableId?: number;
+
+  @IsInt()
+  @IsOptional()
+  orderId?: number;
 
   @IsString()
   @IsOptional()

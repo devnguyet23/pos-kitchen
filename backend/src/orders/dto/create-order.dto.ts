@@ -1,24 +1,25 @@
-import { IsInt, IsArray, IsOptional, ValidateNested } from 'class-validator';
+import { IsArray, IsInt, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class OrderItemDto {
-  @IsInt()
-  productId: number;
+export class CreateOrderItemDto {
+                    @IsInt()
+                    productId: number;
 
-  @IsInt()
-  quantity: number;
+                    @IsInt()
+                    quantity: number;
 
-  @IsOptional()
-  notes?: string;
+                    @IsString()
+                    @IsOptional()
+                    notes?: string;
 }
 
 export class CreateOrderDto {
-  @IsInt()
-  @IsOptional()
-  tableId?: number;
+                    @IsInt()
+                    @IsOptional()
+                    tableId?: number;
 
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => OrderItemDto)
-  items: OrderItemDto[];
+                    @IsArray()
+                    @ValidateNested({ each: true })
+                    @Type(() => CreateOrderItemDto)
+                    items: CreateOrderItemDto[];
 }

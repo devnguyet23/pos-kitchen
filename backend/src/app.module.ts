@@ -1,25 +1,31 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 import { PrismaModule } from './prisma/prisma.module';
 import { EventsModule } from './events/events.module';
-import { TablesModule } from './tables/tables.module';
-import { OrdersModule } from './orders/orders.module';
-import { ProductsModule } from './products/products.module';
-import { InventoryModule } from './inventory/inventory.module';
 import { InvoicesModule } from './invoices/invoices.module';
+import { ReportsModule } from './reports/reports.module';
+import { ProductsModule } from './products/products.module';
+import { OrdersModule } from './orders/orders.module';
+import { ModifiersModule } from './modifiers/modifiers.module';
+import { CategoriesModule } from './categories/categories.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
-  imports: [
-    PrismaModule,
-    EventsModule,
-    TablesModule,
-    OrdersModule,
-    ProductsModule,
-    InventoryModule,
-    InvoicesModule,
-  ],
-  controllers: [AppController],
-  providers: [AppService],
+                    imports: [
+                                        ServeStaticModule.forRoot({
+                                                            rootPath: join(__dirname, '..', 'uploads'),
+                                                            serveRoot: '/uploads',
+                                        }),
+                                        PrismaModule,
+                                        EventsModule,
+                                        InvoicesModule,
+                                        ReportsModule,
+                                        ProductsModule,
+                                        OrdersModule,
+                                        ModifiersModule,
+                                        CategoriesModule,
+                                        UploadModule,
+                    ],
 })
-export class AppModule {}
+export class AppModule { }

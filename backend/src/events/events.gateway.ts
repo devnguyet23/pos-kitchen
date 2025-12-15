@@ -1,30 +1,25 @@
-import {
-  WebSocketGateway,
-  WebSocketServer,
-  SubscribeMessage,
-  MessageBody,
-} from '@nestjs/websockets';
+import { WebSocketGateway, WebSocketServer, SubscribeMessage, MessageBody } from '@nestjs/websockets';
 import { Server } from 'socket.io';
 
-@WebSocketGateway({
-  cors: {
-    origin: '*',
-  },
-})
+@WebSocketGateway({ cors: { origin: '*' } })
 export class EventsGateway {
-  @WebSocketServer()
-  server: Server;
+                    @WebSocketServer()
+                    server: Server;
 
-  sendTableUpdate(tableId: number, status: string) {
-    this.server.emit('table_update', { tableId, status });
-  }
+                    @SubscribeMessage('ping')
+                    handlePing(@MessageBody() data: string): string {
+                                        return 'pong';
+                    }
 
-  sendOrderCreated(order: any) {
-    this.server.emit('order_created', order);
-  }
+                    sendTableUpdate(tableId: number, status: string) {
+                                        this.server.emit('table:updated', { tableId, status });
+                    }
 
-  @SubscribeMessage('ping')
-  handlePing(@MessageBody() data: string): string {
-    return 'pong';
-  }
+                    sendOrderUpdate(order: any) {
+                                        this.server.emit('order:new', order);
+                    }
+
+                    sendOrderItemUpdate(orderItem: any) {
+                                        this.server.emit('orderItem:updated', orderItem);
+                    }
 }

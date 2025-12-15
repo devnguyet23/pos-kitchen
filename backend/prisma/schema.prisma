@@ -32,6 +32,7 @@ model Product {
   id          Int            @id @default(autoincrement())
   name        String
   price       Float
+  image       String?        // URL or base64 image
   categoryId  Int
   category    Category       @relation(fields: [categoryId], references: [id])
   modifiers   ProductModifier[]

@@ -8,21 +8,40 @@ export class InvoicesService {
   constructor(
     private prisma: PrismaService,
     private eventsGateway: EventsGateway,
-  ) {}
+  ) { }
 
   async create(createInvoiceDto: CreateInvoiceDto) {
-    const { tableId, paymentMethod } = createInvoiceDto;
-    
-    const orders = await this.prisma.order.findMany({
-      where: {
-        tableId,
-        invoice: { is: null } // Not yet invoiced
-      },
-      include: { items: true }
-    });
+    const { tableId, orderId, paymentMethod } = createInvoiceDto;
+
+    let orders = [];
+
+    if (orderId) {
+      const order = await this.prisma.order.findUnique({
+        where: { id: orderId },
+        include: { items: true },
+      });
+      if (order) {
+        const existing = await this.prisma.invoice.findUnique({
+          where: { orderId },
+        });
+        if (!existing) orders = [order];
+      }
+    } else if (tableId) {
+      orders = await this.prisma.order.findMany({
+        where: {
+          tableId,
+          invoice: { is: null },
+        },
+        include: { items: true },
+      });
+    } else {
+      throw new BadRequestException(
+        'Either tableId or orderId must be provided.',
+      );
+    }
 
     if (orders.length === 0) {
-      throw new BadRequestException('No active orders to checkout for this table.');
+      throw new BadRequestException('No active orders to checkout.');
     }
 
     let subtotal = 0;
@@ -30,14 +49,13 @@ export class InvoicesService {
       subtotal += order.total;
     }
 
-    const serviceChargeRate = 0.05; // 5%
-    const taxRate = 0.10; // 10%
+    const serviceChargeRate = 0.05;
+    const taxRate = 0.1;
 
     const serviceCharge = subtotal * serviceChargeRate;
     const tax = (subtotal + serviceCharge) * taxRate;
     const total = subtotal + serviceCharge + tax;
 
-    // Link to the last order for simplicity in 1-1 schema
     const lastOrder = orders[orders.length - 1];
 
     const invoice = await this.prisma.invoice.create({
@@ -48,28 +66,75 @@ export class InvoicesService {
         tax,
         total,
         paymentMethod: paymentMethod || 'CASH',
-      }
+      },
     });
 
-    // Update Table Status
-    await this.prisma.table.update({
-      where: { id: tableId },
-      data: { status: 'AVAILABLE' }
-    });
-    this.eventsGateway.sendTableUpdate(tableId, 'AVAILABLE');
+    if (tableId) {
+      await this.prisma.table.update({
+        where: { id: tableId },
+        data: { status: 'AVAILABLE' },
+      });
+      this.eventsGateway.sendTableUpdate(tableId, 'AVAILABLE');
+    }
 
-    // Update Orders Status
     await this.prisma.order.updateMany({
-        where: {
-            id: { in: orders.map(o => o.id) }
-        },
-        data: { status: 'COMPLETED' }
+      where: {
+        id: { in: orders.map((o) => o.id) },
+      },
+      data: { status: 'COMPLETED' },
     });
 
     return invoice;
   }
 
-  findAll() {
-    return this.prisma.invoice.findMany();
+  async findAll(from?: string, to?: string) {
+    const where: any = {};
+
+    if (from || to) {
+      where.createdAt = {};
+      if (from) {
+        where.createdAt.gte = new Date(from);
+      }
+      if (to) {
+        where.createdAt.lte = new Date(to);
+      }
+    }
+
+    return this.prisma.invoice.findMany({
+      where,
+      include: {
+        order: {
+          include: {
+            items: {
+              include: {
+                product: true,
+              },
+            },
+            table: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async findOne(id: number) {
+    return this.prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        order: {
+          include: {
+            items: {
+              include: {
+                product: true,
+              },
+            },
+            table: true,
+          },
+        },
+      },
+    });
   }
 }

@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # Database Service
+  postgres:
+    image: postgres:15-alpine
+    container_name: pos_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: pos_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Backend Service (NestJS)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pos_backend
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: "postgresql://postgres:password@postgres:5432/pos_db"
+      PORT: 3001
+    depends_on:
+      - postgres
+    # Wait for DB to be ready before running migrations and starting
+    # Using db push for initial schema creation (no migrations folder needed)
+    command: >
+      sh -c "sleep 5 && npx prisma db push --accept-data-loss && npx ts-node prisma/seed.ts && npm run start:prod"
+
+  # Frontend Service (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pos_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      # Next.js often builds at build time, so API URL needs to be known.
+      # For client-side calls in Docker, localhost works if accessing from host machine browser.
+      # But if using SSR to call backend, it needs container name.
+      # For this demo, we assume Client Side Fetching mostly.
+      NEXT_PUBLIC_API_URL: "http://localhost:3001"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

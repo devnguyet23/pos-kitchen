@@ -1,0 +1,110 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Table {
+  id        Int      @id @default(autoincrement())
+  name      String
+  status    String   @default("AVAILABLE") // AVAILABLE, OCCUPIED, RESERVED
+  x         Int      @default(0) // For map positioning
+  y         Int      @default(0)
+  seats     Int      @default(4)
+  orders    Order[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id       Int       @id @default(autoincrement())
+  name     String
+  products Product[]
+}
+
+model Product {
+  id          Int            @id @default(autoincrement())
+  name        String
+  price       Float
+  categoryId  Int
+  category    Category       @relation(fields: [categoryId], references: [id])
+  modifiers   ProductModifier[]
+  recipes     Recipe[]
+  orderItems  OrderItem[]
+  createdAt   DateTime       @default(now())
+}
+
+model Modifier {
+  id        Int      @id @default(autoincrement())
+  name      String
+  options   String   // JSON string of options: {"Sugar": ["30%", "50%"], "Ice": ["None", "Full"]}
+  products  ProductModifier[]
+}
+
+model ProductModifier {
+  productId  Int
+  modifierId Int
+  product    Product  @relation(fields: [productId], references: [id])
+  modifier   Modifier @relation(fields: [modifierId], references: [id])
+
+  @@id([productId, modifierId])
+}
+
+model Ingredient {
+  id        Int      @id @default(autoincrement())
+  name      String
+  unit      String   // g, ml, pcs
+  stock     Float    @default(0)
+  cost      Float    @default(0)
+  recipes   Recipe[]
+}
+
+model Recipe {
+  id           Int        @id @default(autoincrement())
+  productId    Int
+  product      Product    @relation(fields: [productId], references: [id])
+  ingredientId Int
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+  quantity     Float
+}
+
+model Order {
+  id         Int         @id @default(autoincrement())
+  tableId    Int?
+  table      Table?      @relation(fields: [tableId], references: [id])
+  status     String      @default("PENDING") // PENDING, CONFIRMED, PREPARING, READY, COMPLETED, CANCELLED
+  items      OrderItem[]
+  total      Float       @default(0)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  invoice    Invoice?
+}
+
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  orderId   Int
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  notes     String? // "No sugar", etc.
+  status    String  @default("PENDING") // PENDING, COOKING, DONE
+}
+
+model Invoice {
+  id            Int      @id @default(autoincrement())
+  orderId       Int      @unique
+  order         Order    @relation(fields: [orderId], references: [id])
+  subtotal      Float
+  tax           Float    @default(0)
+  serviceCharge Float    @default(0)
+  total         Float
+  paymentMethod String   @default("CASH")
+  createdAt     DateTime @default(now())
+}

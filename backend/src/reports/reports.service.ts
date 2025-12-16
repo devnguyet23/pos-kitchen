@@ -9,7 +9,7 @@ export class ReportsService {
     const startDate = new Date(from);
     const endDate = new Date(to);
 
-    // Fetch invoices in range
+    // Fetch invoices with order items to calculate revenue from items
     const invoices = await this.prisma.invoice.findMany({
       where: {
         createdAt: {
@@ -17,10 +17,21 @@ export class ReportsService {
           lte: endDate,
         },
       },
+      include: {
+        order: {
+          include: {
+            items: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
+      },
       orderBy: { createdAt: 'asc' },
     });
 
-    // Aggregate data from invoices
+    // Aggregate data from invoices - calculate revenue from order items
     const dataMap: Record<string, { date: string, revenue: number, orders: number }> = {};
 
     for (const inv of invoices) {
@@ -39,7 +50,9 @@ export class ReportsService {
         dataMap[key] = { date: key, revenue: 0, orders: 0 };
       }
 
-      dataMap[key].revenue += inv.total;
+      // Calculate revenue from order items (price × quantity)
+      const orderRevenue = inv.order.items.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+      dataMap[key].revenue += orderRevenue;
       dataMap[key].orders += 1;
     }
 

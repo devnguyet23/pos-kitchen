@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Search, FileText, Calendar, DollarSign, Package } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { Search, FileText, Calendar, Package, ChevronLeft, ChevronRight, Printer } from "lucide-react";
 
 type OrderItem = {
                     id: number;
@@ -41,6 +41,7 @@ export default function InvoicesPage() {
                     const [invoices, setInvoices] = useState<Invoice[]>([]);
                     const [loading, setLoading] = useState(false);
                     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+                    const printRef = useRef<HTMLDivElement>(null);
 
                     // Date filter states
                     const [filterType, setFilterType] = useState<"all" | "day" | "month" | "year">("all");
@@ -49,6 +50,10 @@ export default function InvoicesPage() {
                                         `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`
                     );
                     const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
+
+                    // Pagination states
+                    const [currentPage, setCurrentPage] = useState(1);
+                    const [pageSize, setPageSize] = useState<number | "all">(20);
 
                     const fetchInvoices = async () => {
                                         setLoading(true);
@@ -74,6 +79,7 @@ export default function InvoicesPage() {
                                                             const res = await fetch(url);
                                                             const data = await res.json();
                                                             setInvoices(data);
+                                                            setCurrentPage(1);
                                         } catch (e) {
                                                             console.error("Failed to fetch invoices:", e);
                                         } finally {
@@ -99,9 +105,114 @@ export default function InvoicesPage() {
                                         return amount.toLocaleString("vi-VN") + " đ";
                     };
 
-                    // Stats
-                    const totalRevenue = invoices.reduce((sum, inv) => sum + inv.total, 0);
+                    const getPaymentMethodLabel = (method: string) => {
+                                        switch (method) {
+                                                            case "CASH":
+                                                                                return "Tiền mặt";
+                                                            case "CARD":
+                                                                                return "Thẻ";
+                                                            case "TRANSFER":
+                                                                                return "Chuyển khoản";
+                                                            default:
+                                                                                return method;
+                                        }
+                    };
+
+                    // Calculate subtotal from order items (without service charge and tax)
+                    const calculateSubtotal = (invoice: Invoice) => {
+                                        return invoice.order.items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+                    };
+
+                    // Pagination logic
                     const totalInvoices = invoices.length;
+                    const totalPages = pageSize === "all" ? 1 : Math.ceil(totalInvoices / pageSize);
+                    const paginatedInvoices = pageSize === "all"
+                                        ? invoices
+                                        : invoices.slice((currentPage - 1) * (pageSize as number), currentPage * (pageSize as number));
+
+                    // Stats - calculate from order items only (without service charge and tax)
+                    const totalRevenue = invoices.reduce((sum, inv) => sum + calculateSubtotal(inv), 0);
+
+                    // Print invoice function
+                    const handlePrintInvoice = () => {
+                                        if (!selectedInvoice) return;
+
+                                        const printWindow = window.open('', '_blank');
+                                        if (!printWindow) return;
+
+                                        const itemsHTML = selectedInvoice.order.items.map(item => `
+      <tr>
+        <td style="padding: 4px 0; border-bottom: 1px solid #eee;">${item.product.name}</td>
+        <td style="padding: 4px 0; border-bottom: 1px solid #eee; text-align: right;">${item.product.price.toLocaleString('vi-VN')}đ</td>
+        <td style="padding: 4px 0; border-bottom: 1px solid #eee; text-align: center;">x${item.quantity}</td>
+        <td style="padding: 4px 0; border-bottom: 1px solid #eee; text-align: right; font-weight: bold;">${(item.product.price * item.quantity).toLocaleString('vi-VN')}đ</td>
+      </tr>
+    `).join('');
+
+                                        printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Hoá đơn #${selectedInvoice.id}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 20px; max-width: 80mm; margin: 0 auto; font-size: 12px; }
+            .header { text-align: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px dashed #000; }
+            .header h1 { font-size: 16px; margin-bottom: 5px; }
+            .info { margin-bottom: 15px; }
+            .info div { display: flex; justify-content: space-between; margin-bottom: 4px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+            th { text-align: left; padding: 4px 0; border-bottom: 2px solid #000; font-size: 10px; text-transform: uppercase; }
+            th:nth-child(2), th:nth-child(4) { text-align: right; }
+            th:nth-child(3) { text-align: center; }
+            .total { font-size: 16px; font-weight: bold; display: flex; justify-content: space-between; padding-top: 10px; border-top: 2px dashed #000; }
+            .footer { text-align: center; margin-top: 20px; padding-top: 10px; border-top: 2px dashed #000; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>HÓA ĐƠN BÁN HÀNG</h1>
+            <p>POS System</p>
+          </div>
+          <div class="info">
+            <div><span>Mã HĐ:</span><span>#${selectedInvoice.id}</span></div>
+            <div><span>Thời gian:</span><span>${formatDate(selectedInvoice.createdAt)}</span></div>
+            <div><span>Thanh toán:</span><span>${getPaymentMethodLabel(selectedInvoice.paymentMethod)}</span></div>
+            ${selectedInvoice.order.table ? `<div><span>Bàn:</span><span>${selectedInvoice.order.table.name}</span></div>` : ''}
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Sản phẩm</th>
+                <th>Đ.Giá</th>
+                <th>SL</th>
+                <th>T.Tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHTML}
+            </tbody>
+          </table>
+          <div class="total">
+            <span>TỔNG CỘNG:</span>
+            <span>${calculateSubtotal(selectedInvoice).toLocaleString('vi-VN')}đ</span>
+          </div>
+          <div class="footer">
+            <p>Cảm ơn quý khách!</p>
+            <p>Hẹn gặp lại</p>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              window.onafterprint = function() { window.close(); };
+            };
+          </script>
+        </body>
+      </html>
+    `);
+                                        printWindow.document.close();
+                    };
 
                     return (
                                         <div className="min-h-screen bg-gray-100">
@@ -136,11 +247,10 @@ export default function InvoicesPage() {
                                                                                                                                             ].map((option) => (
                                                                                                                                                                 <button
                                                                                                                                                                                     key={option.value}
-                                                                                                                                                                                    onClick={() => setFilterType(option.value as any)}
-                                                                                                                                                                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition
-                    ${filterType === option.value
-                                                                                                                                                                                                                            ? "bg-blue-600 text-white"
-                                                                                                                                                                                                                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                                                                                                                                                                    onClick={() => setFilterType(option.value as typeof filterType)}
+                                                                                                                                                                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition ${filterType === option.value
+                                                                                                                                                                                                        ? "bg-blue-600 text-white"
+                                                                                                                                                                                                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                                                                                                                                                                                                         }`}
                                                                                                                                                                 >
                                                                                                                                                                                     {option.label}
@@ -203,41 +313,27 @@ export default function InvoicesPage() {
                                                                                                     <table className="min-w-full divide-y divide-gray-200">
                                                                                                                         <thead className="bg-gray-50">
                                                                                                                                             <tr>
-                                                                                                                                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                                                                                                                                                                                    Mã HĐ
-                                                                                                                                                                </th>
-                                                                                                                                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                                                                                                                                                                                    Thời gian
-                                                                                                                                                                </th>
-                                                                                                                                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                                                                                                                                                                                    Bàn/Order
-                                                                                                                                                                </th>
-                                                                                                                                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                                                                                                                                                                                    Tổng tiền
-                                                                                                                                                                </th>
-                                                                                                                                                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                                                                                                                                                                                    Thanh toán
-                                                                                                                                                                </th>
-                                                                                                                                                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                                                                                                                                                                                    Chi tiết
-                                                                                                                                                                </th>
+                                                                                                                                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã HĐ</th>
+                                                                                                                                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thời gian</th>
+                                                                                                                                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bàn/Order</th>
+                                                                                                                                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Tổng tiền</th>
+                                                                                                                                                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Thanh toán</th>
+                                                                                                                                                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Chi tiết</th>
                                                                                                                                             </tr>
                                                                                                                         </thead>
                                                                                                                         <tbody className="bg-white divide-y divide-gray-200">
                                                                                                                                             {loading ? (
                                                                                                                                                                 <tr>
-                                                                                                                                                                                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                                                                                                                                                                                                        Đang tải...
-                                                                                                                                                                                    </td>
+                                                                                                                                                                                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">Đang tải...</td>
                                                                                                                                                                 </tr>
-                                                                                                                                            ) : invoices.length === 0 ? (
+                                                                                                                                            ) : paginatedInvoices.length === 0 ? (
                                                                                                                                                                 <tr>
                                                                                                                                                                                     <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                                                                                                                                                                                                         Không có hoá đơn nào trong khoảng thời gian này
                                                                                                                                                                                     </td>
                                                                                                                                                                 </tr>
                                                                                                                                             ) : (
-                                                                                                                                                                invoices.map((invoice) => (
+                                                                                                                                                                paginatedInvoices.map((invoice) => (
                                                                                                                                                                                     <tr key={invoice.id} className="hover:bg-gray-50">
                                                                                                                                                                                                         <td className="px-6 py-4 whitespace-nowrap">
                                                                                                                                                                                                                             <div className="flex items-center gap-2">
@@ -260,7 +356,7 @@ export default function InvoicesPage() {
                                                                                                                                                                                                                             )}
                                                                                                                                                                                                         </td>
                                                                                                                                                                                                         <td className="px-6 py-4 whitespace-nowrap text-right font-bold text-green-600">
-                                                                                                                                                                                                                            {formatCurrency(invoice.total)}
+                                                                                                                                                                                                                            {formatCurrency(calculateSubtotal(invoice))}
                                                                                                                                                                                                         </td>
                                                                                                                                                                                                         <td className="px-6 py-4 whitespace-nowrap text-center">
                                                                                                                                                                                                                             <span
@@ -271,7 +367,7 @@ export default function InvoicesPage() {
                                                                                                                                                                                                                                                                                         : "bg-green-100 text-green-800"
                                                                                                                                                                                                                                                                     }`}
                                                                                                                                                                                                                             >
-                                                                                                                                                                                                                                                {invoice.paymentMethod}
+                                                                                                                                                                                                                                                {getPaymentMethodLabel(invoice.paymentMethod)}
                                                                                                                                                                                                                             </span>
                                                                                                                                                                                                         </td>
                                                                                                                                                                                                         <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -287,6 +383,50 @@ export default function InvoicesPage() {
                                                                                                                                             )}
                                                                                                                         </tbody>
                                                                                                     </table>
+
+                                                                                                    {/* Pagination */}
+                                                                                                    {totalInvoices > 0 && (
+                                                                                                                        <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
+                                                                                                                                            <div className="flex items-center gap-2">
+                                                                                                                                                                <span className="text-sm text-gray-500">Hiển thị:</span>
+                                                                                                                                                                <select
+                                                                                                                                                                                    value={pageSize}
+                                                                                                                                                                                    onChange={(e) => {
+                                                                                                                                                                                                        setPageSize(e.target.value === "all" ? "all" : Number(e.target.value));
+                                                                                                                                                                                                        setCurrentPage(1);
+                                                                                                                                                                                    }}
+                                                                                                                                                                                    className="px-2 py-1 border rounded text-sm"
+                                                                                                                                                                >
+                                                                                                                                                                                    <option value={10}>10</option>
+                                                                                                                                                                                    <option value={20}>20</option>
+                                                                                                                                                                                    <option value={30}>30</option>
+                                                                                                                                                                                    <option value={50}>50</option>
+                                                                                                                                                                                    <option value="all">Tất cả</option>
+                                                                                                                                                                </select>
+                                                                                                                                                                <span className="text-sm text-gray-500">/ {totalInvoices} hoá đơn</span>
+                                                                                                                                            </div>
+
+                                                                                                                                            {pageSize !== "all" && totalPages > 1 && (
+                                                                                                                                                                <div className="flex items-center gap-2">
+                                                                                                                                                                                    <button
+                                                                                                                                                                                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                                                                                                                                                                        disabled={currentPage === 1}
+                                                                                                                                                                                                        className="p-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                                                                                                                    >
+                                                                                                                                                                                                        <ChevronLeft size={18} />
+                                                                                                                                                                                    </button>
+                                                                                                                                                                                    <span className="text-sm">Trang {currentPage} / {totalPages}</span>
+                                                                                                                                                                                    <button
+                                                                                                                                                                                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                                                                                                                                                                        disabled={currentPage === totalPages}
+                                                                                                                                                                                                        className="p-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                                                                                                                    >
+                                                                                                                                                                                                        <ChevronRight size={18} />
+                                                                                                                                                                                    </button>
+                                                                                                                                                                </div>
+                                                                                                                                            )}
+                                                                                                                        </div>
+                                                                                                    )}
                                                                                 </div>
                                                             </main>
 
@@ -304,14 +444,19 @@ export default function InvoicesPage() {
                                                                                                                                             </button>
                                                                                                                         </div>
 
+                                                                                                                        {/* Invoice Info */}
                                                                                                                         <div className="border-t border-b py-4 mb-4">
+                                                                                                                                            <div className="flex justify-between text-sm mb-2">
+                                                                                                                                                                <span className="text-gray-500">Mã hoá đơn:</span>
+                                                                                                                                                                <span>#{selectedInvoice.id}</span>
+                                                                                                                                            </div>
                                                                                                                                             <div className="flex justify-between text-sm mb-2">
                                                                                                                                                                 <span className="text-gray-500">Thời gian:</span>
                                                                                                                                                                 <span>{formatDate(selectedInvoice.createdAt)}</span>
                                                                                                                                             </div>
                                                                                                                                             <div className="flex justify-between text-sm mb-2">
                                                                                                                                                                 <span className="text-gray-500">Phương thức:</span>
-                                                                                                                                                                <span>{selectedInvoice.paymentMethod}</span>
+                                                                                                                                                                <span>{getPaymentMethodLabel(selectedInvoice.paymentMethod)}</span>
                                                                                                                                             </div>
                                                                                                                                             {selectedInvoice.order.table && (
                                                                                                                                                                 <div className="flex justify-between text-sm">
@@ -321,45 +466,51 @@ export default function InvoicesPage() {
                                                                                                                                             )}
                                                                                                                         </div>
 
-                                                                                                                        <h3 className="font-medium mb-2">Chi tiết đơn hàng:</h3>
-                                                                                                                        <div className="space-y-2 mb-4">
+                                                                                                                        {/* Order Items */}
+                                                                                                                        <h3 className="font-medium mb-3">Chi tiết đơn hàng:</h3>
+                                                                                                                        <div className="mb-4">
+                                                                                                                                            {/* Table header */}
+                                                                                                                                            <div className="flex text-xs text-gray-500 font-medium border-b pb-2 mb-2">
+                                                                                                                                                                <span className="flex-1">Sản phẩm</span>
+                                                                                                                                                                <span className="w-20 text-right">Đ.Giá</span>
+                                                                                                                                                                <span className="w-12 text-center">SL</span>
+                                                                                                                                                                <span className="w-24 text-right">T.Tiền</span>
+                                                                                                                                            </div>
+                                                                                                                                            {/* Items */}
                                                                                                                                             {selectedInvoice.order.items.map((item) => (
-                                                                                                                                                                <div key={item.id} className="flex justify-between text-sm">
-                                                                                                                                                                                    <div className="flex items-center gap-2">
-                                                                                                                                                                                                        <Package size={14} className="text-gray-400" />
-                                                                                                                                                                                                        <span>
-                                                                                                                                                                                                                            {item.product.name} x{item.quantity}
-                                                                                                                                                                                                        </span>
+                                                                                                                                                                <div key={item.id} className="flex items-center text-sm py-2 border-b border-gray-100">
+                                                                                                                                                                                    <div className="flex-1 flex items-center gap-2">
+                                                                                                                                                                                                        <Package size={14} className="text-gray-400 flex-shrink-0" />
+                                                                                                                                                                                                        <span className="truncate">{item.product.name}</span>
                                                                                                                                                                                     </div>
-                                                                                                                                                                                    <span>{formatCurrency(item.product.price * item.quantity)}</span>
+                                                                                                                                                                                    <span className="w-20 text-right text-gray-600">
+                                                                                                                                                                                                        {item.product.price.toLocaleString("vi-VN")}đ
+                                                                                                                                                                                    </span>
+                                                                                                                                                                                    <span className="w-12 text-center text-gray-600">
+                                                                                                                                                                                                        x{item.quantity}
+                                                                                                                                                                                    </span>
+                                                                                                                                                                                    <span className="w-24 text-right font-medium">
+                                                                                                                                                                                                        {formatCurrency(item.product.price * item.quantity)}
+                                                                                                                                                                                    </span>
                                                                                                                                                                 </div>
                                                                                                                                             ))}
                                                                                                                         </div>
 
-                                                                                                                        <div className="border-t pt-4 space-y-2">
-                                                                                                                                            <div className="flex justify-between text-sm">
-                                                                                                                                                                <span>Tạm tính:</span>
-                                                                                                                                                                <span>{formatCurrency(selectedInvoice.subtotal)}</span>
-                                                                                                                                            </div>
-                                                                                                                                            <div className="flex justify-between text-sm">
-                                                                                                                                                                <span>Phí dịch vụ (5%):</span>
-                                                                                                                                                                <span>{formatCurrency(selectedInvoice.serviceCharge)}</span>
-                                                                                                                                            </div>
-                                                                                                                                            <div className="flex justify-between text-sm">
-                                                                                                                                                                <span>Thuế (10%):</span>
-                                                                                                                                                                <span>{formatCurrency(selectedInvoice.tax)}</span>
-                                                                                                                                            </div>
-                                                                                                                                            <div className="flex justify-between font-bold text-lg border-t pt-2">
+                                                                                                                        {/* Total */}
+                                                                                                                        <div className="border-t pt-4">
+                                                                                                                                            <div className="flex justify-between font-bold text-lg">
                                                                                                                                                                 <span>Tổng cộng:</span>
-                                                                                                                                                                <span className="text-green-600">{formatCurrency(selectedInvoice.total)}</span>
+                                                                                                                                                                <span className="text-green-600">{formatCurrency(calculateSubtotal(selectedInvoice))}</span>
                                                                                                                                             </div>
                                                                                                                         </div>
 
+                                                                                                                        {/* Print Button */}
                                                                                                                         <button
-                                                                                                                                            onClick={() => setSelectedInvoice(null)}
-                                                                                                                                            className="w-full mt-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                                                                                                                            onClick={handlePrintInvoice}
+                                                                                                                                            className="w-full mt-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
                                                                                                                         >
-                                                                                                                                            Đóng
+                                                                                                                                            <Printer size={18} />
+                                                                                                                                            In hoá đơn
                                                                                                                         </button>
                                                                                                     </div>
                                                                                 </div>

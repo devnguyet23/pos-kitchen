@@ -107,9 +107,9 @@ export default function RetailPage() {
     }
   }, []);
 
-  // Get image URL
+  // Get image URL - returns default thumbnail if no image
   const getImageUrl = (imagePath?: string) => {
-    if (!imagePath) return "";
+    if (!imagePath) return "/thumbnail_default.png";
     if (imagePath.startsWith("http") || imagePath.startsWith("data:")) {
       return imagePath;
     }
@@ -285,8 +285,11 @@ export default function RetailPage() {
           .center { text-align: center; }
           .bold { font-weight: bold; }
           .line { border-top: 1px dashed #000; margin: 10px 0; }
-          .item { display: flex; justify-content: space-between; margin: 5px 0; }
-          .total { font-size: 14px; font-weight: bold; }
+          .item { margin: 8px 0; }
+          .item-name { font-weight: bold; margin-bottom: 2px; }
+          .item-details { display: flex; justify-content: space-between; font-size: 11px; color: #555; }
+          .item-total { display: flex; justify-content: flex-end; font-weight: bold; }
+          .total { font-size: 14px; font-weight: bold; display: flex; justify-content: space-between; }
         </style>
       </head>
       <body>
@@ -294,15 +297,26 @@ export default function RetailPage() {
         <div class="center">Số: #${invoice.id}</div>
         <div class="center">${new Date().toLocaleString('vi-VN')}</div>
         <div class="line"></div>
+        <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; margin-bottom: 5px;">
+          <span style="flex: 2;">Sản phẩm</span>
+          <span style="flex: 1; text-align: right;">Đ.Giá</span>
+          <span style="flex: 0.5; text-align: center;">SL</span>
+          <span style="flex: 1; text-align: right;">T.Tiền</span>
+        </div>
+        <div class="line" style="margin: 5px 0;"></div>
         ${cart.map(item => `
           <div class="item">
-            <span>${item.name} x${item.quantity}</span>
-            <span>${(item.price * item.quantity).toLocaleString('vi-VN')}đ</span>
+            <div class="item-name">${item.name}</div>
+            <div class="item-details">
+              <span style="flex: 1; text-align: right;">${item.price.toLocaleString('vi-VN')}đ</span>
+              <span style="flex: 0.5; text-align: center;">x${item.quantity}</span>
+              <span style="flex: 1; text-align: right; font-weight: bold;">${(item.price * item.quantity).toLocaleString('vi-VN')}đ</span>
+            </div>
+            ${item.notes ? `<div style="font-size: 10px; color: gray; font-style: italic;">→ ${item.notes}</div>` : ''}
           </div>
-          ${item.notes ? `<div style="font-size: 10px; color: gray;">${item.notes}</div>` : ''}
         `).join('')}
         <div class="line"></div>
-        <div class="item total">
+        <div class="total">
           <span>TỔNG CỘNG:</span>
           <span>${cartTotal.toLocaleString('vi-VN')}đ</span>
         </div>
@@ -468,15 +482,14 @@ export default function RetailPage() {
                 >
                   {/* Thumbnail */}
                   <div className="aspect-square bg-gray-100 flex items-center justify-center">
-                    {p.image ? (
-                      <img
-                        src={getImageUrl(p.image)}
-                        alt={p.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <ImageIcon size={32} className="text-gray-300" />
-                    )}
+                    <img
+                      src={getImageUrl(p.image)}
+                      alt={p.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/thumbnail_default.png";
+                      }}
+                    />
                   </div>
                   <div className="p-3 text-center">
                     <div className="font-medium text-sm line-clamp-1">{p.name}</div>
@@ -527,17 +540,14 @@ export default function RetailPage() {
                 <div key={idx} className="flex gap-3 mb-3 pb-3 border-b">
                   {/* Item thumbnail */}
                   <div className="w-12 h-12 bg-gray-100 rounded flex-shrink-0 overflow-hidden">
-                    {item.image ? (
-                      <img
-                        src={getImageUrl(item.image)}
-                        alt={item.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <ImageIcon size={20} className="text-gray-300" />
-                      </div>
-                    )}
+                    <img
+                      src={getImageUrl(item.image)}
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/thumbnail_default.png";
+                      }}
+                    />
                   </div>
 
                   {/* Item info - name and unit price */}

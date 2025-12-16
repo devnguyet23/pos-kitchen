@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 
@@ -6,19 +6,62 @@ import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 export class CategoriesService {
                     constructor(private prisma: PrismaService) { }
 
+                    // Helper to get hierarchy depth
+                    private async getHierarchyDepth(parentId: number, currentDepth = 1): Promise<number> {
+                                        const parent = await this.prisma.category.findUnique({
+                                                            where: { id: parentId },
+                                                            select: { parentId: true }
+                                        });
+
+                                        if (!parent) return currentDepth;
+                                        if (!parent.parentId) return currentDepth;
+
+                                        return this.getHierarchyDepth(parent.parentId, currentDepth + 1);
+                    }
+
                     async create(createCategoryDto: CreateCategoryDto) {
+                                        // Validate parent exists and check depth limit (max 3 levels)
+                                        if (createCategoryDto.parentId) {
+                                                            const parent = await this.prisma.category.findUnique({
+                                                                                where: { id: createCategoryDto.parentId }
+                                                            });
+
+                                                            if (!parent) {
+                                                                                throw new NotFoundException('Danh mục cha không tồn tại');
+                                                            }
+
+                                                            const depth = await this.getHierarchyDepth(createCategoryDto.parentId);
+                                                            if (depth >= 2) {
+                                                                                throw new BadRequestException('Chỉ hỗ trợ tối đa 3 cấp danh mục');
+                                                            }
+                                        }
+
                                         return this.prisma.category.create({
-                                                            data: createCategoryDto,
+                                                            data: {
+                                                                                name: createCategoryDto.name,
+                                                                                parentId: createCategoryDto.parentId || null,
+                                                            },
+                                                            include: {
+                                                                                parent: true,
+                                                                                children: true,
+                                                                                _count: { select: { products: true } },
+                                                            },
                                         });
                     }
 
                     findAll() {
                                         return this.prisma.category.findMany({
                                                             include: {
-                                                                                _count: {
-                                                                                                    select: { products: true },
+                                                                                parent: true,
+                                                                                children: {
+                                                                                                    include: {
+                                                                                                                        children: true,
+                                                                                                                        _count: { select: { products: true } },
+                                                                                                    }
                                                                                 },
+                                                                                _count: { select: { products: true } },
                                                             },
+                                                            orderBy: { id: 'asc' },
                                         });
                     }
 
@@ -26,7 +69,15 @@ export class CategoriesService {
                                         const category = await this.prisma.category.findUnique({
                                                             where: { id },
                                                             include: {
+                                                                                parent: true,
+                                                                                children: {
+                                                                                                    include: {
+                                                                                                                        children: true,
+                                                                                                                        _count: { select: { products: true } },
+                                                                                                    }
+                                                                                },
                                                                                 products: true,
+                                                                                _count: { select: { products: true } },
                                                             },
                                         });
 
@@ -40,14 +91,41 @@ export class CategoriesService {
                     async update(id: number, updateCategoryDto: UpdateCategoryDto) {
                                         await this.findOne(id);
 
+                                        // Validate parent if provided
+                                        if (updateCategoryDto.parentId !== undefined) {
+                                                            if (updateCategoryDto.parentId === id) {
+                                                                                throw new BadRequestException('Danh mục không thể là cha của chính nó');
+                                                            }
+
+                                                            if (updateCategoryDto.parentId) {
+                                                                                const parent = await this.prisma.category.findUnique({
+                                                                                                    where: { id: updateCategoryDto.parentId }
+                                                                                });
+
+                                                                                if (!parent) {
+                                                                                                    throw new NotFoundException('Danh mục cha không tồn tại');
+                                                                                }
+
+                                                                                const depth = await this.getHierarchyDepth(updateCategoryDto.parentId);
+                                                                                if (depth >= 2) {
+                                                                                                    throw new BadRequestException('Chỉ hỗ trợ tối đa 3 cấp danh mục');
+                                                                                }
+                                                            }
+                                        }
+
                                         return this.prisma.category.update({
                                                             where: { id },
                                                             data: updateCategoryDto,
+                                                            include: {
+                                                                                parent: true,
+                                                                                children: true,
+                                                                                _count: { select: { products: true } },
+                                                            },
                                         });
                     }
 
                     async remove(id: number) {
-                                        await this.findOne(id);
+                                        const category = await this.findOne(id);
 
                                         // Check if category has products
                                         const productCount = await this.prisma.product.count({
@@ -55,8 +133,19 @@ export class CategoriesService {
                                         });
 
                                         if (productCount > 0) {
-                                                            throw new NotFoundException(
+                                                            throw new BadRequestException(
                                                                                 `Không thể xóa danh mục này vì có ${productCount} sản phẩm thuộc danh mục.`
+                                                            );
+                                        }
+
+                                        // Check if category has children
+                                        const childrenCount = await this.prisma.category.count({
+                                                            where: { parentId: id },
+                                        });
+
+                                        if (childrenCount > 0) {
+                                                            throw new BadRequestException(
+                                                                                `Không thể xóa danh mục này vì có ${childrenCount} danh mục con.`
                                                             );
                                         }
 

@@ -238,7 +238,7 @@ export default function ProductsPage() {
 
                     // Get full image URL
                     const getImageUrl = (imagePath: string) => {
-                                        if (!imagePath) return "";
+                                        if (!imagePath) return "/thumbnail_default.png";
                                         if (imagePath.startsWith("http") || imagePath.startsWith("data:")) {
                                                             return imagePath;
                                         }
@@ -457,11 +457,14 @@ export default function ProductsPage() {
                                                                                                                                                                 <tr key={product.id} className="hover:bg-gray-50">
                                                                                                                                                                                     <td className="px-4 py-3">
                                                                                                                                                                                                         <div className="w-12 h-12 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
-                                                                                                                                                                                                                            {product.image ? (
-                                                                                                                                                                                                                                                <img src={getImageUrl(product.image)} alt={product.name} className="w-full h-full object-cover" />
-                                                                                                                                                                                                                            ) : (
-                                                                                                                                                                                                                                                <ImageIcon size={20} className="text-gray-300" />
-                                                                                                                                                                                                                            )}
+                                                                                                                                                                                                                            <img
+                                                                                                                                                                                                                                                src={getImageUrl(product.image || "")}
+                                                                                                                                                                                                                                                alt={product.name}
+                                                                                                                                                                                                                                                className="w-full h-full object-cover"
+                                                                                                                                                                                                                                                onError={(e) => {
+                                                                                                                                                                                                                                                                    (e.target as HTMLImageElement).src = "/thumbnail_default.png";
+                                                                                                                                                                                                                                                }}
+                                                                                                                                                                                                                            />
                                                                                                                                                                                                         </div>
                                                                                                                                                                                     </td>
                                                                                                                                                                                     <td className="px-4 py-3 text-sm text-gray-500">#{product.id}</td>
@@ -755,13 +758,14 @@ export default function ProductsPage() {
                                                                                                                         <div className="px-6 py-6">
                                                                                                                                             <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl mb-4">
                                                                                                                                                                 <div className="w-16 h-16 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
-                                                                                                                                                                                    {productToDelete.image ? (
-                                                                                                                                                                                                        <img src={getImageUrl(productToDelete.image)} alt={productToDelete.name} className="w-full h-full object-cover" />
-                                                                                                                                                                                    ) : (
-                                                                                                                                                                                                        <div className="w-full h-full flex items-center justify-center">
-                                                                                                                                                                                                                            <ImageIcon size={24} className="text-gray-400" />
-                                                                                                                                                                                                        </div>
-                                                                                                                                                                                    )}
+                                                                                                                                                                                    <img
+                                                                                                                                                                                                        src={getImageUrl(productToDelete.image || "")}
+                                                                                                                                                                                                        alt={productToDelete.name}
+                                                                                                                                                                                                        className="w-full h-full object-cover"
+                                                                                                                                                                                                        onError={(e) => {
+                                                                                                                                                                                                                            (e.target as HTMLImageElement).src = "/thumbnail_default.png";
+                                                                                                                                                                                                        }}
+                                                                                                                                                                                    />
                                                                                                                                                                 </div>
                                                                                                                                                                 <div className="flex-1 min-w-0">
                                                                                                                                                                                     <p className="font-semibold text-gray-900 truncate">{productToDelete.name}</p>

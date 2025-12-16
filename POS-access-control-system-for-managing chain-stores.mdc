@@ -1,0 +1,1105 @@
+# HỆ THỐNG PHÂN QUYỀN POS QUẢN LÝ CHUỖI CỬA HÀNG
+
+> **Phiên bản:** 1.0.0  
+> **Ngày cập nhật:** 16/12/2025
+> **Tác giả:** POS Development Team
+
+---
+
+## 📋 MỤC LỤC
+
+1. [Tổng quan hệ thống](#1-tổng-quan-hệ-thống)
+2. [Kiến trúc phân quyền](#2-kiến-trúc-phân-quyền)
+3. [Các vai trò trong hệ thống](#3-các-vai-trò-trong-hệ-thống)
+4. [Bảng phân quyền chi tiết](#4-bảng-phân-quyền-chi-tiết)
+5. [Thiết kế Database](#5-thiết-kế-database)
+6. [Implementation với NestJS](#6-implementation-với-nestjs)
+7. [API Endpoints](#7-api-endpoints)
+8. [Use Cases](#8-use-cases)
+9. [Security & Best Practices](#9-security--best-practices)
+10. [Testing](#10-testing)
+11. [Deployment](#11-deployment)
+
+---
+
+## 1. TỔNG QUAN HỆ THỐNG
+
+### 1.1. Giới thiệu
+
+Hệ thống POS (Point of Sale) quản lý chuỗi cửa hàng với khả năng multi-tenant, cho phép quản lý nhiều chuỗi độc lập trong cùng một hệ thống 🏢
+
+**Tính năng chính:**
+- ✅ Quản lý nhiều chuỗi (multi-tenant)
+- ✅ Mỗi chuỗi có nhiều cửa hàng
+- ✅ Mỗi cửa hàng có nhiều nhân viên
+- ✅ Phân quyền chi tiết theo vai trò và phạm vi
+- ✅ Audit logging đầy đủ
+- ✅ RESTful API với JWT authentication
+
+### 1.2. Mô hình hệ thống
+
+System (Hệ thống)
+│
+├── Chain 1 (Chuỗi 1: The Coffee House)
+│   ├── Store 1.1 (Cửa hàng: TCH Trần Duy Hưng)
+│   │   ├── User 1.1.1 (Quản lý)
+│   │   ├── User 1.1.2 (Thu ngân)
+│   │   └── User 1.1.3 (Kho)
+│   │
+│   └── Store 1.2 (Cửa hàng: TCH Cầu Giấy)
+│       ├── User 1.2.1 (Quản lý)
+│       └── User 1.2.2 (Thu ngân)
+│
+└── Chain 2 (Chuỗi 2: Highlands Coffee)
+├── Store 2.1 (Cửa hàng: HLC Hoàn Kiếm)
+└── Store 2.2 (Cửa hàng: HLC Đống Đa)
+
+
+### 1.3. Tech Stack
+
+| Thành phần | Công nghệ | Mô tả |
+|------------|-----------|-------|
+| **Backend Framework** | NestJS 10.x | Node.js framework với TypeScript |
+| **Database** | MySQL 8.0+ / PostgreSQL 14+ | Relational database |
+| **ORM** | TypeORM 0.3.x | Object-Relational Mapping |
+| **Authentication** | JWT | JSON Web Token |
+| **Authorization** | RBAC | Role-Based Access Control |
+| **API Documentation** | Swagger/OpenAPI | Auto-generated API docs |
+| **Validation** | class-validator | DTO validation |
+| **Password Hashing** | bcrypt | Secure password storage |
+
+Hệ thống được xây dựng với kiến trúc modular, dễ mở rộng và bảo trì 🏗️
+
+---
+
+## 2. KIẾN TRÚC PHÂN QUYỀN
+
+### 2.1. RBAC (Role-Based Access Control)
+
+Hệ thống sử dụng mô hình RBAC với cấu trúc phân cấp rõ ràng:
+
+User (Người dùng)
+↓ has many
+UserRole (Vai trò của người dùng + Scope)
+↓ belongs to
+Role (Vai trò)
+↓ has many
+RolePermission (Liên kết)
+↓ grants
+Permission (Quyền hạn cụ thể)
+
+
+**Đặc điểm:**
+- 🔐 Một user có thể có nhiều roles
+- 🎯 Mỗi role có scope riêng (System/Chain/Store)
+- 🔑 Permissions được gán cho roles, không gán trực tiếp cho users
+- 📊 Hỗ trợ permission constraints (giới hạn số tiền, thời gian, etc.)
+
+### 2.2. Phạm vi phân quyền (Scope Levels)
+
+| Level | Phạm vi | Ví dụ vai trò | Mô tả |
+|-------|---------|---------------|-------|
+| **1** | System | Super Admin | Toàn bộ hệ thống, tất cả chains |
+| **2** | Chain | Chain Owner, Accountant | Toàn bộ 1 chuỗi, tất cả stores trong chuỗi |
+| **3** | Store | Store Manager, Cashier | Chỉ 1 cửa hàng cụ thể |
+
+**Quy tắc kế thừa:**
+- Level 1 có thể truy cập Level 2 và 3
+- Level 2 có thể truy cập Level 3 trong cùng chain
+- Level 3 chỉ truy cập được store của mình
+
+### 2.3. Sơ đồ quan hệ Database
+
+```mermaid
+erDiagram
+    CHAINS ||--o{ STORES : contains
+    CHAINS ||--o{ USERS : belongs_to
+    STORES ||--o{ USERS : works_at
+    STORES ||--o{ ORDERS : receives
+    
+    USERS ||--o{ USER_ROLES : has
+    USERS ||--o{ ORDERS : creates
+    USERS ||--o{ AUDIT_LOGS : performs
+    
+    ROLES ||--o{ USER_ROLES : assigned_to
+    ROLES ||--o{ ROLE_PERMISSIONS : has
+    
+    PERMISSIONS ||--o{ ROLE_PERMISSIONS : granted_to
+    PERMISSIONS ||--o{ PERMISSION_CONSTRAINTS : limits
+    
+    USER_ROLES }o--|| CHAINS : scoped_to
+    USER_ROLES }o--|| STORES : scoped_to
+
+3. CÁC VAI TRÒ TRONG HỆ THỐNG
+3.1. 👑 SUPER ADMIN (Quản trị hệ thống)
+Phạm vi: Toàn bộ hệ thống (Level 1)
+
+Quyền hạn:
+
+✅ Quản lý tất cả chuỗi (CRUD)
+✅ Xem báo cáo tổng hợp toàn hệ thống
+✅ Quản lý license, billing
+✅ Cấu hình hệ thống toàn cục
+✅ Backup/restore database
+✅ Quản lý API keys và webhooks
+✅ Truy cập mọi dữ liệu trong hệ thống
+Use cases:
+
+Nhà phát triển hệ thống
+DevOps team
+Technical support level 3
+
+Lưu ý bảo mật:
+
+⚠️ Chỉ nên có 2-3 super admin accounts
+⚠️ Bắt buộc 2FA (Two-Factor Authentication)
+⚠️ Log tất cả hành động của super admin
+
+
+3.2. 💼 CHAIN OWNER (Chủ chuỗi)
+Phạm vi: 1 chuỗi cụ thể (Level 2)
+
+Quyền hạn:
+
+✅ Quản lý tất cả cửa hàng trong chuỗi
+✅ Tạo/xóa/sửa cửa hàng
+✅ Xem báo cáo toàn chuỗi (doanh thu, tồn kho, nhân sự)
+✅ Quản lý sản phẩm chung cho chuỗi
+✅ Thiết lập giá, khuyến mãi toàn chuỗi
+✅ Quản lý nhà cung cấp
+✅ Phân quyền Chain Admin và Store Manager
+✅ Xem tồn kho real-time toàn chuỗi
+❌ Không thể xem/truy cập chuỗi khác
+Use cases:
+
+CEO/Founder của chuỗi
+Giám đốc điều hành (COO)
+Chủ doanh nghiệp
+
+
+3.3. 🎯 CHAIN ADMIN (Quản trị chuỗi)
+Phạm vi: 1 chuỗi cụ thể (Level 2)
+
+Quyền hạn:
+
+✅ Quản lý cửa hàng (tạo/sửa, không xóa)
+✅ Xem báo cáo toàn chuỗi
+✅ Quản lý sản phẩm
+✅ Quản lý nhân viên cấp Store
+✅ Thiết lập khuyến mãi
+✅ Xem tồn kho toàn chuỗi
+❌ Không xóa cửa hàng (cần Chain Owner)
+❌ Không thay đổi cấu hình thanh toán
+❌ Không quản lý Chain Owner
+Use cases:
+
+Giám đốc vận hành (Operations Manager)
+Trưởng phòng kinh doanh
+Assistant to CEO
+Sự khác biệt với Chain Owner:
+
+Không có quyền xóa cửa hàng
+Không thể thay đổi cấu hình tài chính quan trọng
+Không thể phân quyền Chain Owner cho người khác
+
+3.4. 🏪 STORE MANAGER (Quản lý cửa hàng)
+Phạm vi: 1 cửa hàng cụ thể (Level 3)
+
+Quyền hạn:
+
+✅ Quản lý nhân viên cửa hàng (tạo, sửa, xóa)
+✅ Xem báo cáo cửa hàng (doanh thu, ca làm việc)
+✅ Quản lý ca làm việc (shifts)
+✅ Duyệt đơn hàng, hoàn trả không giới hạn
+✅ Quản lý tồn kho cửa hàng
+✅ Tạo phiếu nhập/xuất kho
+✅ Xem lịch sử giao dịch chi tiết
+✅ Chỉnh sửa giá (trong giới hạn ±10%)
+✅ Mở/đóng ca, đối soát cuối ca
+❌ Không xóa giao dịch đã hoàn thành
+❌ Không xem dữ liệu cửa hàng khác
+Use cases:
+
+Quản lý cửa hàng
+Trưởng ca chính
+Assistant Store Manager
+
+3.5. 👔 ASSISTANT MANAGER (Phó quản lý)
+Phạm vi: 1 cửa hàng cụ thể (Level 3)
+
+Quyền hạn:
+
+✅ Xem báo cáo cửa hàng (giới hạn)
+✅ Quản lý ca làm việc
+✅ Duyệt hoàn trả (giới hạn ≤ 500,000 VNĐ)
+✅ Xem tồn kho
+✅ Hỗ trợ thu ngân khi cần
+✅ Mở/đóng ca
+✅ Xử lý khiếu nại khách hàng
+❌ Không quản lý nhân viên
+❌ Không tạo phiếu nhập kho
+❌ Không xem báo cáo tài chính chi tiết
+Use cases:
+
+Phó quản lý cửa hàng
+Trưởng ca phụ
+Nhân viên senior được ủy quyền
+
+
+3.6. 💵 CASHIER (Thu ngân)
+Phạm vi: 1 cửa hàng cụ thể (Level 3)
+
+Quyền hạn:
+
+✅ Tạo đơn hàng
+✅ Thanh toán (tiền mặt, thẻ, chuyển khoản, ví điện tử)
+✅ In hóa đơn
+✅ Hoàn trả (cần duyệt nếu > 200,000 VNĐ)
+✅ Xem lịch sử đơn hàng của mình trong ca
+✅ Áp dụng khuyến mãi (theo chính sách)
+✅ Quản lý ca của mình (mở/đóng ca)
+✅ Xem thông tin sản phẩm, giá
+❌ Không xem báo cáo doanh thu
+❌ Không sửa giá sản phẩm
+❌ Không xóa đơn hàng
+❌ Không xem đơn hàng của người khác
+Use cases:
+
+Nhân viên thu ngân
+Nhân viên bán hàng
+Part-time staff
+
+Workflow điển hình:
+
+🔓 Mở ca làm việc
+🛒 Tạo đơn hàng
+💳 Xử lý thanh toán
+🧾 In hóa đơn
+🔒 Đóng ca và đối soát
+
+
+3.7. 📦 WAREHOUSE STAFF (Nhân viên kho)
+Phạm vi: 1 cửa hàng hoặc kho trung tâm (Level 3)
+
+Quyền hạn:
+
+✅ Nhập kho (tạo phiếu nhập)
+✅ Xuất kho (tạo phiếu xuất)
+✅ Kiểm kê định kỳ
+✅ Xem tồn kho real-time
+✅ In phiếu nhập/xuất
+✅ Quản lý vị trí hàng trong kho
+✅ Scan barcode/QR code
+✅ Cảnh báo hàng sắp hết
+❌ Không bán hàng
+❌ Không xem doanh thu
+❌ Không quản lý giá
+Use cases:
+
+Thủ kho
+Nhân viên kho
+Inventory controller
+
+Báo cáo có thể xem:
+
+📊 Báo cáo tồn kho
+📥 Lịch sử nhập kho
+📤 Lịch sử xuất kho
+⚠️ Cảnh báo hàng tồn kho thấp
+📋 Báo cáo kiểm kê
+
+3.8. 💰 ACCOUNTANT (Kế toán)
+Phạm vi: Chuỗi hoặc cửa hàng (Level 2 hoặc 3)
+
+Quyền hạn:
+
+✅ Xem tất cả báo cáo tài chính
+✅ Xem lịch sử giao dịch chi tiết
+✅ Export dữ liệu (Excel, PDF, CSV)
+✅ Đối soát công nợ
+✅ Quản lý chi phí vận hành
+✅ Báo cáo thuế
+✅ Xem báo cáo lương nhân viên
+❌ Không tạo/sửa đơn hàng
+❌ Không quản lý nhân viên
+❌ Không quản lý sản phẩm
+Use cases:
+
+Kế toán trưởng
+Kế toán viên
+Kiểm toán viên nội bộ
+
+Báo cáo đặc biệt:
+
+💵 Báo cáo doanh thu chi tiết
+💳 Báo cáo thanh toán theo phương thức
+📊 Báo cáo lãi/lỗ
+🧾 Báo cáo thuế VAT
+💼 Báo cáo chi phí vận hành
+
+
+3.9. 👀 VIEWER (Người xem)
+Phạm vi: Chuỗi hoặc cửa hàng (Level 2 hoặc 3)
+
+Quyền hạn:
+
+✅ Xem báo cáo (read-only)
+✅ Xem dashboard
+✅ Xem biểu đồ, thống kê
+❌ Không thao tác gì khác
+❌ Không export dữ liệu
+❌ Không xem thông tin nhạy cảm
+Use cases:
+
+Nhà đầu tư
+Cổ đông
+External auditor
+Business analyst
+
+# MA TRẬN PHÂN QUYỀN HỆ THỐNG POS
+
+> **Phiên bản:** 1.0.0  
+> **Ngày cập nhật:** 16/12/2024  
+> **Mô tả:** Bảng phân quyền chi tiết cho tất cả vai trò trong hệ thống POS
+
+---
+
+## 📋 DANH SÁCH VAI TRÒ
+
+| # | Vai trò | Code | Level | Mô tả |
+|---|---------|------|-------|-------|
+| 1 | Super Admin | `super_admin` | 1 - System | Quản trị viên hệ thống |
+| 2 | Chain Owner | `chain_owner` | 2 - Chain | Chủ chuỗi |
+| 3 | Chain Admin | `chain_admin` | 2 - Chain | Quản trị chuỗi |
+| 4 | Store Manager | `store_manager` | 3 - Store | Quản lý cửa hàng |
+| 5 | Assistant Manager | `assistant_manager` | 3 - Store | Phó quản lý |
+| 6 | Cashier | `cashier` | 3 - Store | Thu ngân |
+| 7 | Warehouse Staff | `warehouse_staff` | 3 - Store | Nhân viên kho |
+| 8 | Accountant | `accountant` | 2/3 - Chain/Store | Kế toán |
+| 9 | Viewer | `viewer` | 2/3 - Chain/Store | Người xem |
+
+---
+
+## 🔐 MA TRẬN PHÂN QUYỀN ĐẦY ĐỦ
+
+### Chú thích:
+- ✅ = Có quyền đầy đủ
+- ✅* = Có quyền nhưng giới hạn (cần duyệt hoặc có điều kiện)
+- ❌ = Không có quyền
+- 🔒 = Yêu cầu xác thực bổ sung (2FA, approval)
+
+---
+
+## 1️⃣ QUẢN LÝ CHUỖI (CHAIN MANAGEMENT)
+
+| Chức năng | Permission Code | Super Admin | Chain Owner | Chain Admin | Store Manager | Asst Manager | Cashier | Warehouse | Accountant | Viewer |
+|-----------|----------------|:-----------:|:-----------:|:-----------:|:-------------:|:------------:|:-------:|:---------:|:----------:|:------:|
+| **Xem tất cả chuỗi** | `view_chains` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Xem chuỗi của mình** | `view_own_chain` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Tạo chuỗi mới** | `create_chain` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Sửa thông tin chuỗi** | `edit_chain` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Xóa chuỗi** | `delete_chain` | ✅ 🔒 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Cấu hình chuỗi** | `configure_chain` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Xem cấu hình chuỗi** | `view_chain_config` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+---
+
+## 2️⃣ QUẢN LÝ CỬA HÀNG (STORE MANAGEMENT)
+
+| Chức năng | Permission Code | Super Admin | Chain Owner | Chain Admin | Store Manager | Asst Manager | Cashier | Warehouse | Accountant | Viewer |
+|-----------|----------------|:-----------:|:-----------:|:-----------:|:-------------:|:------------:|:-------:|:---------:|:----------:|:------:|
+| **Xem tất cả cửa hàng** | `view_stores` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| **Xem cửa hàng của mình** | `view_own_store` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Tạo cửa hàng** | `create_store` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Sửa cửa hàng** | `edit_store` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Xóa cửa hàng** | `delete_store` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Cấu hình cửa hàng** | `configure_store` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Mở/đóng cửa hàng** | `toggle_store_status` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Xem thông tin vị trí** | `view_store_location` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+---
+
+## 3️⃣ QUẢN LÝ NHÂN VIÊN (USER MANAGEMENT)
+
+| Chức năng | Permission Code | Super Admin | Chain Owner | Chain Admin | Store Manager | Asst Manager | Cashier | Warehouse | Accountant | Viewer |
+|-----------|----------------|:-----------:|:-----------:|:-----------:|:-------------:|:------------:|:-------:|:---------:|:----------:|:------:|
+| **Xem tất cả nhân viên** | `view_users` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Xem nhân viên cửa hàng** | `view_store_users` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
+| **Tạo nhân viên** | `create_user` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Sửa nhân viên** | `edit_user` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Xóa nhân viên** | `delete_user` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Phân quyền** | `assign_roles` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Xem lương** | `view_salary` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Quản lý lương** | `manage_salary` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Reset mật khẩu** | `reset_password` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Khóa/mở khóa tài khoản** | `lock_unlock_user` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Xem hồ sơ cá nhân** | `view_own_profile` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Sửa hồ sơ cá nhân** | `edit_own_profile` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+
+---
+
+## 4️⃣ QUẢN LÝ CA LÀM VIỆC (SHIFT MANAGEMENT)
+
+| Chức năng | Permission Code | Super Admin | Chain Owner | Chain Admin | Store Manager | Asst Manager | Cashier | Warehouse | Accountant | Viewer |
+|-----------|----------------|:-----------:|:-----------:|:-----------:|:-------------:|:------------:|:-------:|:---------:|:----------:|:------:|
+| **Xem tất cả ca** | `view_shifts` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
+| **Xem ca của mình** | `view_own_shifts` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Tạo ca làm việc** | `create_shift` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Sửa ca làm việc** | `edit_shift` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Xóa ca làm việc** | `delete_shift` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Mở ca** | `open_shift` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Đóng ca** | `close_shift` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* | ❌ | ❌ | ❌ |
+| **Đóng ca của người khác** | `close_others_shift` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Đối soát ca** | `reconcile_shift` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| **Xem báo cáo ca** | `view_shift_reports` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+
+**Ghi chú:**
+- ✅* Cashier chỉ có thể đóng ca của chính mình
+
+---
+
+## 5️⃣ BÁN HÀNG (SALES)
+
+| Chức năng | Permission Code | Super Admin | Chain Owner | Chain Admin | Store Manager | Asst Manager | Cashier | Warehouse | Accountant | Viewer |
+|-----------|----------------|:-----------:|:-----------:|:-----------:|:-------------:|:------------:|:-------:|:---------:|:----------:|:------:|
+| **Xem tất cả đơn hàng** | `view_orders` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
+| **Xem đơn của mình** | `view_own_orders` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| **Xem đơn trong ca** | `view_shift_orders` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| **Tạo đơn hàng** | `create_order` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Sửa đơn hàng** | `edit_order` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Xóa đơn hàng** | `delete_order` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Hủy đơn hàng** | `cancel_order` | ✅ | ✅ | ✅ | ✅ | ✅* | ❌ | ❌ | ❌ | ❌ |
+| **Hoàn trả không giới hạn** | `process_refund_unlimited` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Hoàn trả có giới hạn** | `process_refund_limited` | ✅ | ✅ | ✅ | ✅ | ✅* | ✅* | ❌ | ❌ | ❌ |
+| **Duyệt hoàn trả** | `approve_refund` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Giảm giá không giới hạn** | `apply_discount_unlimited` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Giảm giá có giới hạn** | `apply_discount_limited` | ✅ | ✅ | ✅ | ✅ | ✅* | ✅* | ❌ | ❌ | ❌ |
+| **Duyệt giảm giá** | `approve_discount` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Thanh toán** | `process_payment` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **In hóa đơn** | `print_invoice` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Gửi hóa đơn email** | `email_invoice` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+
+**Giới hạn cụ thể:**
+- ✅* **Assistant Manager**: Hoàn trả ≤ 500,000 VNĐ, Giảm giá ≤ 15%
+- ✅* **Cashier**: Hoàn trả ≤ 200,000 VNĐ, Giảm giá ≤ 10%
+
+---
+
+## 6️⃣ QUẢN LÝ KHO (INVENTORY MANAGEMENT)
+
+| Chức năng | Permission Code | Super Admin | Chain Owner | Chain Admin | Store Manager | Asst Manager | Cashier | Warehouse | Accountant | Viewer |
+|-----------|----------------|:-----------:|:-----------:|:-----------:|:-------------:|:------------:|:-------:|:---------:|:----------:|:------:|
+| **Xem tồn kho tất cả** | `view_inventory_all` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| **Xem tồn kho cửa hàng** | `view_inventory` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Nhập kho** | `stock_in` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Xuất kho** | `stock_out` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Kiểm kê** | `stock_take` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Điều chỉnh tồn kho** | `adjust_inventory` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Chuyển kho** | `transfer_inventory` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Duyệt chuyển kho** | `approve_transfer` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Xem lịch sử nhập/xuất** | `view_inventory_history` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
+| **In phiếu nhập/xuất** | `print_stock_documents` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Quản lý vị trí kho** | `manage_warehouse_locations` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Cảnh báo tồn kho thấp** | `view_low_stock_alerts` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
+
+---
+
+## 7️⃣ QUẢN LÝ SẢN PHẨM (PRODUCT MANAGEMENT)
+
+| Chức năng | Permission Code | Super Admin | Chain Owner | Chain Admin | Store Manager | Asst Manager | Cashier | Warehouse | Accountant | Viewer |
+|-----------|----------------|:-----------:|:-----------:|:-----------:|:-------------:|:------------:|:-------:|:---------:|:----------:|:------:|
+| **Xem tất cả sản phẩm** | `view_products` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Tạo sản phẩm** | `create_product` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Sửa sản phẩm** | `edit_product` | ✅ | ✅ | ✅ | ✅* | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Xóa sản phẩm** | `delete_product` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Ẩn/hiện sản phẩm** | `toggle_product_visibility` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Quản lý giá** | `manage_product_price` | ✅ | ✅ | ✅ | ✅* | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Quản lý danh mục** | `manage_categories` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Upload ảnh sản phẩm** | `upload_product_images` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Quản lý biến thể** | `manage_product_variants` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Quản lý barcode** | `manage_product_barcode` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+
+**Giới hạn cụ thể:**
+- ✅* **Store Manager**: Chỉ được thay đổi giá ±10%, cần duyệt nếu vượt quá
+
+---
+
+## 8️⃣ KHUYẾN MÃI (PROMOTION MANAGEMENT)
+
+| Chức năng | Permission Code | Super Admin | Chain Owner | Chain Admin | Store Manager | Asst Manager | Cashier | Warehouse | Accountant | Viewer |
+|-----------|----------------|:-----------:|:-----------:|:-----------:|:-------------:|:------------:|:-------:|:---------:|:----------:|:------:|
+| **Xem khuyến mãi** | `view_promotions` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| **Tạo khuyến mãi** | `create_promotion` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Sửa khuyến mãi** | `edit_promotion` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Xóa khuyến mãi** | `delete_promotion` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Kích hoạt khuyến mãi** | `activate_promotion` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Áp dụng khuyến mãi** | `apply_promotion` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Xem báo cáo khuyến mãi** | `view_promotion_reports` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
+
+---
+
+## 9️⃣ KHÁCH HÀNG (CUSTOMER MANAGEMENT)
+
+| Chức năng | Permission Code | Super Admin | Chain Owner | Chain Admin | Store Manager | Asst Manager | Cashier | Warehouse | Accountant | Viewer |
+|-----------|----------------|:-----------:|:-----------:|:-----------:|:-------------:|:------------:|:-------:|:---------:|:----------:|:------:|
+| **Xem khách hàng** | `view_customers` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Tạo khách hàng** | `create_customer` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Sửa khách hàng** | `edit_customer` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Xóa khách hàng** | `delete_customer` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Quản lý điểm tích lũy** | `manage_loyalty_points` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Xem lịch sử mua hàng** | `view_customer_history` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| **Export danh sách KH** | `export_customers` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+
+---
+
+## 🔟 NHÀ CUNG CẤP (SUPPLIER MANAGEMENT)
+
+| Chức năng | Permission Code | Super Admin | Chain Owner | Chain Admin | Store Manager | Asst Manager | Cashier | Warehouse | Accountant | Viewer |
+|-----------|----------------|:-----------:|:-----------:|:-----------:|:-------------:|:------------:|:-------:|:---------:|:----------:|:------:|
+| **Xem nhà cung cấp** | `view_suppliers` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| **Tạo nhà cung cấp** | `create_supplier` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Sửa nhà cung cấp** | `edit_supplier` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Xóa nhà cung cấp** | `delete_supplier` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Quản lý công nợ** | `manage_supplier_debt` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Xem lịch sử giao dịch** | `view_supplier_transactions` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ |
+
+---
+
+## 1️⃣1️⃣ BÁO CÁO (REPORTS)
+
+| Chức năng | Permission Code | Super Admin | Chain Owner | Chain Admin | Store Manager | Asst Manager | Cashier | Warehouse | Accountant | Viewer |
+|-----------|----------------|:-----------:|:-----------:|:-----------:|:-------------:|:------------:|:-------:|:---------:|:----------:|:------:|
+| **Báo cáo toàn hệ thống** | `view_system_reports` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Báo cáo chuỗi** | `view_chain_reports` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| **Báo cáo cửa hàng** | `view_store_reports` | ✅ | ✅ | ✅ | ✅ | ✅* | ❌ | ❌ | ✅ | ✅ |
+| **Báo cáo cá nhân** | `view_own_reports` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Báo cáo doanh thu** | `view_revenue_reports` | ✅ | ✅ | ✅ | ✅ | ✅* | ❌ | ❌ | ✅ | ✅ |
+| **Báo cáo lợi nhuận** | `view_profit_reports` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅* |
+| **Báo cáo tồn kho** | `view_inventory_reports` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
+| **Báo cáo nhân sự** | `view_staff_reports` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Báo cáo thuế** | `view_tax_reports` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Báo cáo tài chính** | `view_financial_reports` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅* |
+| **Export dữ liệu** | `export_data` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Export Excel** | `export_excel` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Export PDF** | `export_pdf` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Dashboard tổng quan** | `view_dashboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
+
+**Giới hạn cụ thể:**
+- ✅* **Assistant Manager**: Chỉ xem báo cáo doanh thu, không xem chi tiết lợi nhuận
+- ✅* **Viewer**: Xem báo cáo tài chính tổng quan, không xem chi tiết
+
+---
+
+## 1️⃣2️⃣ CẤU HÌNH HỆ THỐNG (SYSTEM CONFIGURATION)
+
+| Chức năng | Permission Code | Super Admin | Chain Owner | Chain Admin | Store Manager | Asst Manager | Cashier | Warehouse | Accountant | Viewer |
+|-----------|----------------|:-----------:|:-----------:|:-----------:|:-------------:|:------------:|:-------:|:---------:|:----------:|:------:|
+| **Cấu hình hệ thống** | `configure_system` | ✅ 🔒 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Cấu hình thanh toán** | `configure_payment` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Cấu hình in ấn** | `configure_printing` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Cấu hình email** | `configure_email` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Cấu hình SMS** | `configure_sms` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Cấu hình thuế** | `configure_tax` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Quản lý API keys** | `manage_api_keys` | ✅ 🔒 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Backup database** | `backup_database` | ✅ 🔒 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Restore database** | `restore_database` | ✅ 🔒 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Xem system logs** | `view_system_logs` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Xem audit logs** | `view_audit_logs` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+
+---
+
+## 1️⃣3️⃣ TÍCH HỢP (INTEGRATIONS)
+
+| Chức năng | Permission Code | Super Admin | Chain Owner | Chain Admin | Store Manager | Asst Manager | Cashier | Warehouse | Accountant | Viewer |
+|-----------|----------------|:-----------:|:-----------:|:-----------:|:-------------:|:------------:|:-------:|:---------:|:----------:|:------:|
+| **Quản lý tích hợp** | `manage_integrations` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Webhook management** | `manage_webhooks` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Tích hợp thanh toán** | `integrate_payment_gateway` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Tích hợp vận chuyển** | `integrate_shipping` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Tích hợp kế toán** | `integrate_accounting` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+
+---
+
+## 📊 TỔNG HỢP PERMISSIONS THEO VAI TRÒ
+
+### Super Admin (100+ permissions)
+```typescript
+const SUPER_ADMIN_PERMISSIONS = ['*']; // Wildcard - tất cả quyền
+
+
+
+5. THIẾT KẾ DATABASE
+5.1. Complete Database Schema
+
+-- =============================================
+-- BẢNG CHAINS (CHUỖI)
+-- =============================================
+CREATE TABLE chains (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL COMMENT 'Tên chuỗi',
+    code VARCHAR(50) UNIQUE NOT NULL COMMENT 'Mã chuỗi',
+    status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
+    logo_url VARCHAR(500) COMMENT 'URL logo',
+    description TEXT COMMENT 'Mô tả',
+    website VARCHAR(255) COMMENT 'Website',
+    email VARCHAR(255) COMMENT 'Email',
+    phone VARCHAR(20) COMMENT 'Số điện thoại',
+    address TEXT COMMENT 'Địa chỉ trụ sở',
+    tax_code VARCHAR(50) COMMENT 'Mã số thuế',
+    settings JSON COMMENT 'Cấu hình',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    INDEX idx_code (code),
+    INDEX idx_status (status),
+    FULLTEXT INDEX ft_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- BẢNG STORES (CỬA HÀNG)
+-- =============================================
+CREATE TABLE stores (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    chain_id INT NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    code VARCHAR(50) UNIQUE NOT NULL,
+    address TEXT,
+    ward VARCHAR(100),
+    district VARCHAR(100),
+    city VARCHAR(100),
+    phone VARCHAR(20),
+    email VARCHAR(255),
+    latitude DECIMAL(10, 8),
+    longitude DECIMAL(11, 8),
+    status ENUM('active', 'inactive', 'maintenance') DEFAULT 'active',
+    opening_time TIME,
+    closing_time TIME,
+    area_sqm DECIMAL(10, 2),
+    capacity INT,
+    settings JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (chain_id) REFERENCES chains(id) ON DELETE CASCADE,
+    INDEX idx_chain_id (chain_id),
+    INDEX idx_code (code),
+    INDEX idx_status (status),
+    FULLTEXT INDEX ft_address (name, address)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- BẢNG USERS (NHÂN VIÊN)
+-- =============================================
+CREATE TABLE users (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    chain_id INT,
+    store_id INT,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    phone VARCHAR(20),
+    avatar_url VARCHAR(500),
+    date_of_birth DATE,
+    gender ENUM('male', 'female', 'other'),
+    address TEXT,
+    citizen_id VARCHAR(20),
+    status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
+    two_factor_enabled BOOLEAN DEFAULT FALSE,
+    two_factor_secret VARCHAR(255),
+    last_login_at TIMESTAMP NULL,
+    last_login_ip VARCHAR(45),
+    password_changed_at TIMESTAMP NULL,
+    failed_login_attempts INT DEFAULT 0,
+    locked_until TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (chain_id) REFERENCES chains(id) ON DELETE CASCADE,
+    FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE,
+    INDEX idx_username (username),
+    INDEX idx_email (email),
+    INDEX idx_chain_id (chain_id),
+    INDEX idx_store_id (store_id),
+    INDEX idx_status (status),
+    FULLTEXT INDEX ft_user_search (full_name, email, phone)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- BẢNG ROLES (VAI TRÒ)
+-- =============================================
+CREATE TABLE roles (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    code VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    level INT NOT NULL COMMENT '1=System, 2=Chain, 3=Store',
+    is_system BOOLEAN DEFAULT FALSE,
+    color VARCHAR(7),
+    icon VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    INDEX idx_code (code),
+    INDEX idx_level (level)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- BẢNG PERMISSIONS (QUYỀN HẠN)
+-- =============================================
+CREATE TABLE permissions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    code VARCHAR(50) UNIQUE NOT NULL,
+    module VARCHAR(50) NOT NULL,
+    description TEXT,
+    is_system BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    INDEX idx_code (code),
+    INDEX idx_module (module)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- BẢNG ROLE_PERMISSIONS
+-- =============================================
+CREATE TABLE role_permissions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    role_id INT NOT NULL,
+    permission_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+    FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_role_permission (role_id, permission_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- BẢNG USER_ROLES
+-- =============================================
+CREATE TABLE user_roles (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    role_id INT NOT NULL,
+    chain_id INT,
+    store_id INT,
+    assigned_by INT,
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+    FOREIGN KEY (chain_id) REFERENCES chains(id) ON DELETE CASCADE,
+    FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE,
+    FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_user_role_scope (user_id, role_id, chain_id, store_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- BẢNG PERMISSION_CONSTRAINTS
+-- =============================================
+CREATE TABLE permission_constraints (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    permission_id INT NOT NULL,
+    constraint_type VARCHAR(50) NOT NULL,
+    constraint_value JSON NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- BẢNG ORDERS (ĐƠN HÀNG)
+-- =============================================
+CREATE TABLE orders (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    store_id INT NOT NULL,
+    user_id INT NOT NULL,
+    order_code VARCHAR(50) UNIQUE NOT NULL,
+    customer_name VARCHAR(255),
+    customer_phone VARCHAR(20),
+    customer_email VARCHAR(255),
+    order_type ENUM('dine_in', 'takeaway', 'delivery') DEFAULT 'dine_in',
+    table_number VARCHAR(20),
+    subtotal DECIMAL(15, 2) NOT NULL,
+    discount DECIMAL(15, 2) DEFAULT 0,
+    discount_type ENUM('amount', 'percentage'),
+    tax DECIMAL(15, 2) DEFAULT 0,
+    service_charge DECIMAL(15, 2) DEFAULT 0,
+    total DECIMAL(15, 2) NOT NULL,
+    payment_method ENUM('cash', 'card', 'transfer', 'e-wallet', 'mixed'),
+    payment_details JSON,
+    paid_amount DECIMAL(15, 2) DEFAULT 0,
+    change_amount DECIMAL(15, 2) DEFAULT 0,
+    status ENUM('draft', 'pending', 'completed', 'cancelled', 'refunded') DEFAULT 'pending',
+    items JSON NOT NULL,
+    note TEXT,
+    refund_reason TEXT,
+    refund_amount DECIMAL(15, 2),
+    refunded_at TIMESTAMP NULL,
+    refunded_by INT,
+    approved_by INT,
+    shift_id INT,
+    completed_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (refunded_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_store_id (store_id),
+    INDEX idx_order_code (order_code),
+    INDEX idx_status (status),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- BẢNG SHIFTS (CA LÀM VIỆC)
+-- =============================================
+CREATE TABLE shifts (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    store_id INT NOT NULL,
+    user_id INT NOT NULL,
+    shift_code VARCHAR(50) UNIQUE NOT NULL,
+    opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    closed_at TIMESTAMP NULL,
+    opening_cash DECIMAL(15, 2) NOT NULL,
+    closing_cash DECIMAL(15, 2),
+    expected_cash DECIMAL(15, 2),
+    cash_difference DECIMAL(15, 2),
+    total_sales DECIMAL(15, 2) DEFAULT 0,
+    total_orders INT DEFAULT 0,
+    total_refunds DECIMAL(15, 2) DEFAULT 0,
+    status ENUM('open', 'closed') DEFAULT 'open',
+    note TEXT,
+    closed_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (closed_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_store_id (store_id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================
+-- BẢNG AUDIT_LOGS (NHẬT KÝ HOẠT ĐỘNG)
+-- =============================================
+CREATE TABLE audit_logs (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT,
+    action VARCHAR(50) NOT NULL,
+    model VARCHAR(50) NOT NULL,
+    model_id INT,
+    old_values JSON,
+    new_values JSON,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    request_url VARCHAR(500),
+    request_method VARCHAR(10),
+    response_status INT,
+    execution_time INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_user_id (user_id),
+    INDEX idx_action (action),
+    INDEX idx_model (model),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+5.2. Seed Data (Dữ liệu mẫu)
+
+-- INSERT PERMISSIONS
+INSERT INTO permissions (name, code, module, is_system) VALUES
+-- Chain management
+('View Chains', 'view_chains', 'chain', TRUE),
+('Create Chain', 'create_chain', 'chain', TRUE),
+('Edit Chain', 'edit_chain', 'chain', TRUE),
+('Delete Chain', 'delete_chain', 'chain', TRUE),
+
+-- Store management
+('View Stores', 'view_stores', 'store', TRUE),
+('Create Store', 'create_store', 'store', TRUE),
+('Edit Store', 'edit_store', 'store', TRUE),
+('Delete Store', 'delete_store', 'store', TRUE),
+
+-- User management
+('View Users', 'view_users', 'user', TRUE),
+('Create User', 'create_user', 'user', TRUE),
+('Edit User', 'edit_user', 'user', TRUE),
+('Delete User', 'delete_user', 'user', TRUE),
+
+-- Sales
+('View Orders', 'view_orders', 'sales', TRUE),
+('Create Order', 'create_order', 'sales', TRUE),
+('Edit Order', 'edit_order', 'sales', TRUE),
+('Delete Order', 'delete_order', 'sales', TRUE),
+('Process Refund', 'process_refund', 'sales', TRUE),
+('Apply Discount', 'apply_discount', 'sales', TRUE),
+
+-- Inventory
+('View Inventory', 'view_inventory', 'inventory', TRUE),
+('Stock In', 'stock_in', 'inventory', TRUE),
+('Stock Out', 'stock_out', 'inventory', TRUE),
+('Stock Take', 'stock_take', 'inventory', TRUE),
+
+-- Products
+('View Products', 'view_products', 'product', TRUE),
+('Create Product', 'create_product', 'product', TRUE),
+('Edit Product', 'edit_product', 'product', TRUE),
+('Delete Product', 'delete_product', 'product', TRUE),
+
+-- Reports
+('View System Reports', 'view_system_reports', 'report', TRUE),
+('View Chain Reports', 'view_chain_reports', 'report', TRUE),
+('View Store Reports', 'view_store_reports', 'report', TRUE),
+('Export Data', 'export_data', 'report', TRUE),
+
+-- Shifts
+('Manage Shifts', 'manage_shifts', 'shift', TRUE),
+('Close Shift', 'close_shift', 'shift', TRUE),
+('Manage Own Shift', 'manage_own_shift', 'shift', TRUE);
+
+-- INSERT ROLES
+INSERT INTO roles (name, code, level, is_system, description) VALUES
+('Super Admin', 'super_admin', 1, TRUE, 'Quản trị viên hệ thống'),
+('Chain Owner', 'chain_owner', 2, TRUE, 'Chủ chuỗi'),
+('Chain Admin', 'chain_admin', 2, TRUE, 'Quản trị chuỗi'),
+('Store Manager', 'store_manager', 3, TRUE, 'Quản lý cửa hàng'),
+('Assistant Manager', 'assistant_manager', 3, TRUE, 'Phó quản lý'),
+('Cashier', 'cashier', 3, TRUE, 'Thu ngân'),
+('Warehouse Staff', 'warehouse_staff', 3, TRUE, 'Nhân viên kho'),
+('Accountant', 'accountant', 2, TRUE, 'Kế toán'),
+('Viewer', 'viewer', 2, TRUE, 'Người xem');
+
+-- ASSIGN PERMISSIONS TO ROLES
+-- Super Admin - All permissions
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.code = 'super_admin';
+
+-- Chain Owner
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.code = 'chain_owner'
+AND p.code IN (
+    'view_stores', 'create_store', 'edit_store', 'delete_store',
+    'view_users', 'create_user', 'edit_user', 'delete_user',
+    'view_products', 'create_product', 'edit_product', 'delete_product',
+    'view_inventory', 'stock_in', 'stock_out', 'stock_take',
+    'view_orders', 'create_order', 'edit_order', 'delete_order',
+    'process_refund', 'apply_discount',
+    'view_chain_reports', 'view_store_reports', 'export_data'
+);
+
+-- Store Manager
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.code = 'store_manager'
+AND p.code IN (
+    'view_users', 'create_user', 'edit_user', 'delete_user',
+    'view_orders', 'create_order', 'edit_order', 'process_refund', 'apply_discount',
+    'view_inventory', 'stock_in', 'stock_out', 'stock_take',
+    'view_products', 'edit_product',
+    'view_store_reports', 'export_data',
+    'manage_shifts', 'close_shift'
+);
+
+-- Cashier
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.code = 'cashier'
+AND p.code IN (
+    'view_orders', 'create_order', 'process_refund', 'apply_discount',
+    'view_products', 'view_inventory',
+    'manage_own_shift'
+);
+
+-- Warehouse Staff
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.code = 'warehouse_staff'
+AND p.code IN (
+    'view_inventory', 'stock_in', 'stock_out', 'stock_take',
+    'view_products'
+);
+
+-- Accountant
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.code = 'accountant'
+AND p.code IN (
+    'view_chain_reports', 'view_store_reports', 'export_data'
+);
+
+-- CREATE SAMPLE DATA
+-- Chain
+INSERT INTO chains (name, code, status) VALUES
+('The Coffee House', 'TCH', 'active');
+
+SET @chain_id = LAST_INSERT_ID();
+
+-- Stores
+INSERT INTO stores (chain_id, name, code, address, phone, status) VALUES
+(@chain_id, 'TCH Trần Duy Hưng', 'TCH-TDH', '123 Trần Duy Hưng, Cầu Giấy, Hà Nội', '0241234567', 'active'),
+(@chain_id, 'TCH Cầu Giấy', 'TCH-CG', '456 Cầu Giấy, Hà Nội', '0241234568', 'active');
+
+SET @store1_id = (SELECT id FROM stores WHERE code = 'TCH-TDH');
+SET @store2_id = (SELECT id FROM stores WHERE code = 'TCH-CG');
+
+-- Users (password: password123 - hashed with bcrypt)
+INSERT INTO users (username, email, password, full_name, chain_id, store_id, status) VALUES
+('superadmin', 'superadmin@pos.com', '$2b$10$YourHashedPasswordHere', 'Super Administrator', NULL, NULL, 'active'),
+('owner', 'owner@tch.com', '$2b$10$YourHashedPasswordHere', 'Nguyễn Văn A', @chain_id, NULL, 'active'),
+('manager1', 'manager1@tch.com', '$2b$10$YourHashedPasswordHere', 'Trần Thị B', @chain_id, @store1_id, 'active'),
+('cashier1', 'cashier1@tch.com', '$2b$10$YourHashedPasswordHere', 'Lê Văn C', @chain_id, @store1_id, 'active'),
+('warehouse1', 'warehouse1@tch.com', '$2b$10$YourHashedPasswordHere', 'Phạm Thị D', @chain_id, @store1_id, 'active');
+
+-- Assign Roles
+INSERT INTO user_roles (user_id, role_id, chain_id, store_id)
+SELECT u.id, r.id, NULL, NULL
+FROM users u, roles r
+WHERE u.username = 'superadmin' AND r.code = 'super_admin';
+
+INSERT INTO user_roles (user_id, role_id, chain_id, store_id)
+SELECT u.id, r.id, @chain_id, NULL
+FROM users u, roles r
+WHERE u.username = 'owner' AND r.code = 'chain_owner';
+
+INSERT INTO user_roles (user_id, role_id, chain_id, store_id)
+SELECT u.id, r.id, @chain_id, @store1_id
+FROM users u, roles r
+WHERE u.username = 'manager1' AND r.code = 'store_manager';
+
+INSERT INTO user_roles (user_id, role_id, chain_id, store_id)
+SELECT u.id, r.id, @chain_id, @store1_id
+FROM users u, roles r
+WHERE u.username = 'cashier1' AND r.code = 'cashier';
+
+INSERT INTO user_roles (user_id, role_id, chain_id, store_id)
+SELECT u.id, r.id, @chain_id, @store1_id
+FROM users u, roles r
+WHERE u.username = 'warehouse1' AND r.code = 'warehouse_staff';

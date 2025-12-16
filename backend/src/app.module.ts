@@ -10,6 +10,7 @@ import { OrdersModule } from './orders/orders.module';
 import { ModifiersModule } from './modifiers/modifiers.module';
 import { CategoriesModule } from './categories/categories.module';
 import { UploadModule } from './upload/upload.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
                     imports: [
@@ -18,6 +19,7 @@ import { UploadModule } from './upload/upload.module';
                                                             serveRoot: '/uploads',
                                         }),
                                         PrismaModule,
+                                        AuthModule,
                                         EventsModule,
                                         InvoicesModule,
                                         ReportsModule,
@@ -29,3 +31,4 @@ import { UploadModule } from './upload/upload.module';
                     ],
 })
 export class AppModule { }
+

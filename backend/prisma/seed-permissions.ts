@@ -293,26 +293,29 @@ export async function seedSampleData() {
                                         },
                     });
 
-                    // Assign super_admin role
-                    const superAdminRole = await prisma.role.findUnique({ where: { code: 'super_admin' } });
-                    if (superAdminRole) {
-                                        await prisma.userRole.upsert({
-                                                            where: {
-                                                                                userId_roleId_chainId_storeId: {
-                                                                                                    userId: superAdmin.id,
-                                                                                                    roleId: superAdminRole.id,
-                                                                                                    chainId: null as any,
-                                                                                                    storeId: null as any,
-                                                                                }
-                                                            },
-                                                            update: {},
-                                                            create: {
-                                                                                userId: superAdmin.id,
-                                                                                roleId: superAdminRole.id,
+                    // Helper to assign role (delete existing + create new)
+                    async function assignRole(userId: number, roleCode: string, chainId: number | null, storeId: number | null) {
+                                        const role = await prisma.role.findUnique({ where: { code: roleCode } });
+                                        if (!role) return;
+
+                                        // Delete existing assignment if any
+                                        await prisma.userRole.deleteMany({
+                                                            where: { userId, roleId: role.id }
+                                        });
+
+                                        // Create new assignment
+                                        await prisma.userRole.create({
+                                                            data: {
+                                                                                userId,
+                                                                                roleId: role.id,
+                                                                                chainId,
+                                                                                storeId,
                                                                                 isActive: true,
-                                                            },
+                                                            }
                                         });
                     }
+
+                    await assignRole(superAdmin.id, 'super_admin', null, null);
                     console.log(`  ✅ Created super admin: ${superAdmin.username} (password: admin123)`);
 
                     // Create chain owner
@@ -328,27 +331,7 @@ export async function seedSampleData() {
                                                             status: 'ACTIVE',
                                         },
                     });
-
-                    const chainOwnerRole = await prisma.role.findUnique({ where: { code: 'chain_owner' } });
-                    if (chainOwnerRole) {
-                                        await prisma.userRole.upsert({
-                                                            where: {
-                                                                                userId_roleId_chainId_storeId: {
-                                                                                                    userId: chainOwner.id,
-                                                                                                    roleId: chainOwnerRole.id,
-                                                                                                    chainId: chain.id,
-                                                                                                    storeId: null as any,
-                                                                                }
-                                                            },
-                                                            update: {},
-                                                            create: {
-                                                                                userId: chainOwner.id,
-                                                                                roleId: chainOwnerRole.id,
-                                                                                chainId: chain.id,
-                                                                                isActive: true,
-                                                            },
-                                        });
-                    }
+                    await assignRole(chainOwner.id, 'chain_owner', chain.id, null);
                     console.log(`  ✅ Created chain owner: ${chainOwner.username}`);
 
                     // Create store manager
@@ -365,28 +348,7 @@ export async function seedSampleData() {
                                                             status: 'ACTIVE',
                                         },
                     });
-
-                    const storeManagerRole = await prisma.role.findUnique({ where: { code: 'store_manager' } });
-                    if (storeManagerRole) {
-                                        await prisma.userRole.upsert({
-                                                            where: {
-                                                                                userId_roleId_chainId_storeId: {
-                                                                                                    userId: storeManager.id,
-                                                                                                    roleId: storeManagerRole.id,
-                                                                                                    chainId: chain.id,
-                                                                                                    storeId: store.id,
-                                                                                }
-                                                            },
-                                                            update: {},
-                                                            create: {
-                                                                                userId: storeManager.id,
-                                                                                roleId: storeManagerRole.id,
-                                                                                chainId: chain.id,
-                                                                                storeId: store.id,
-                                                                                isActive: true,
-                                                            },
-                                        });
-                    }
+                    await assignRole(storeManager.id, 'store_manager', chain.id, store.id);
                     console.log(`  ✅ Created store manager: ${storeManager.username}`);
 
                     // Create cashier
@@ -403,28 +365,7 @@ export async function seedSampleData() {
                                                             status: 'ACTIVE',
                                         },
                     });
-
-                    const cashierRole = await prisma.role.findUnique({ where: { code: 'cashier' } });
-                    if (cashierRole) {
-                                        await prisma.userRole.upsert({
-                                                            where: {
-                                                                                userId_roleId_chainId_storeId: {
-                                                                                                    userId: cashier.id,
-                                                                                                    roleId: cashierRole.id,
-                                                                                                    chainId: chain.id,
-                                                                                                    storeId: store.id,
-                                                                                }
-                                                            },
-                                                            update: {},
-                                                            create: {
-                                                                                userId: cashier.id,
-                                                                                roleId: cashierRole.id,
-                                                                                chainId: chain.id,
-                                                                                storeId: store.id,
-                                                                                isActive: true,
-                                                            },
-                                        });
-                    }
+                    await assignRole(cashier.id, 'cashier', chain.id, store.id);
                     console.log(`  ✅ Created cashier: ${cashier.username}`);
 
                     console.log('✅ Sample data seeding completed!');

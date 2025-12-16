@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from "react";
 import { Plus, Pencil, Trash2, X, Save, Upload, Image as ImageIcon, Search, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { useToast } from "@/components/Toast";
 
 type Category = {
                     id: number;
@@ -42,6 +43,7 @@ type ProductFormData = {
 const API_URL = "http://localhost:3001";
 
 export default function ProductsPage() {
+                    const toast = useToast();
                     const [products, setProducts] = useState<Product[]>([]);
                     const [categories, setCategories] = useState<Category[]>([]);
                     const [modifiers, setModifiers] = useState<Modifier[]>([]);
@@ -70,6 +72,11 @@ export default function ProductsPage() {
                     const [pageSize, setPageSize] = useState<number | "all">(20);
                     const [totalProducts, setTotalProducts] = useState(0);
                     const [totalPages, setTotalPages] = useState(1);
+
+                    // Delete modal states
+                    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+                    const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+                    const [deleting, setDeleting] = useState(false);
 
                     // Debounce search
                     const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -198,7 +205,7 @@ export default function ProductsPage() {
                                         if (!file) return;
 
                                         if (file.size > 5 * 1024 * 1024) {
-                                                            alert("Ảnh quá lớn. Vui lòng chọn ảnh dưới 5MB.");
+                                                            toast.error("Ảnh quá lớn. Vui lòng chọn ảnh dưới 5MB.");
                                                             return;
                                         }
 
@@ -223,7 +230,7 @@ export default function ProductsPage() {
                                                             }));
                                         } catch (e) {
                                                             console.error("Failed to upload image:", e);
-                                                            alert("Không thể tải ảnh lên. Vui lòng thử lại.");
+                                                            toast.error("Không thể tải ảnh lên. Vui lòng thử lại.");
                                         } finally {
                                                             setUploading(false);
                                         }
@@ -262,29 +269,47 @@ export default function ProductsPage() {
                                                             closeModal();
                                         } catch (e) {
                                                             console.error("Failed to save product:", e);
-                                                            alert("Failed to save product");
+                                                            toast.error("Có lỗi xảy ra khi lưu sản phẩm.");
                                         } finally {
                                                             setLoading(false);
                                         }
                     };
 
-                    // Handle delete
-                    const handleDelete = async (id: number) => {
-                                        if (!confirm("Bạn có chắc muốn xóa sản phẩm này?")) return;
+                    // Open delete confirmation modal
+                    const openDeleteModal = (product: Product) => {
+                                        setProductToDelete(product);
+                                        setDeleteModalOpen(true);
+                    };
 
+                    // Close delete modal
+                    const closeDeleteModal = () => {
+                                        setDeleteModalOpen(false);
+                                        setProductToDelete(null);
+                    };
+
+                    // Handle delete
+                    const handleDelete = async () => {
+                                        if (!productToDelete) return;
+
+                                        setDeleting(true);
                                         try {
-                                                            const res = await fetch(`${API_URL}/products/${id}`, {
+                                                            const res = await fetch(`${API_URL}/products/${productToDelete.id}`, {
                                                                                 method: "DELETE",
                                                             });
                                                             if (!res.ok) {
                                                                                 const error = await res.json();
-                                                                                alert(error.message || "Không thể xóa sản phẩm");
+                                                                                toast.error(error.message || "Không thể xóa sản phẩm");
+                                                                                closeDeleteModal();
                                                                                 return;
                                                             }
                                                             await fetchProducts();
+                                                            toast.success("Đã xóa sản phẩm thành công!");
+                                                            closeDeleteModal();
                                         } catch (e) {
                                                             console.error("Failed to delete product:", e);
-                                                            alert("Failed to delete product");
+                                                            toast.error("Có lỗi xảy ra khi xóa sản phẩm.");
+                                        } finally {
+                                                            setDeleting(false);
                                         }
                     };
 
@@ -480,7 +505,7 @@ export default function ProductsPage() {
                                                                                                                                                                                                                                                 <Pencil size={16} />
                                                                                                                                                                                                                             </button>
                                                                                                                                                                                                                             <button
-                                                                                                                                                                                                                                                onClick={() => handleDelete(product.id)}
+                                                                                                                                                                                                                                                onClick={() => openDeleteModal(product)}
                                                                                                                                                                                                                                                 className="p-2 text-red-600 hover:bg-red-50 rounded"
                                                                                                                                                                                                                             >
                                                                                                                                                                                                                                                 <Trash2 size={16} />
@@ -709,6 +734,66 @@ export default function ProductsPage() {
                                                                                                                                                                 </button>
                                                                                                                                             </div>
                                                                                                                         </form>
+                                                                                                    </div>
+                                                                                </div>
+                                                            )}
+
+                                                            {/* Delete Confirmation Modal */}
+                                                            {deleteModalOpen && productToDelete && (
+                                                                                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                                                                                                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeDeleteModal}></div>
+                                                                                                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-in zoom-in-95 duration-200">
+                                                                                                                        {/* Header with warning icon */}
+                                                                                                                        <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-8 text-center">
+                                                                                                                                            <div className="mx-auto w-16 h-16 bg-white/20 backdrop-blur rounded-full flex items-center justify-center mb-4">
+                                                                                                                                                                <Trash2 size={32} className="text-white" />
+                                                                                                                                            </div>
+                                                                                                                                            <h3 className="text-xl font-bold text-white">Xác nhận xóa sản phẩm</h3>
+                                                                                                                        </div>
+
+                                                                                                                        {/* Product info */}
+                                                                                                                        <div className="px-6 py-6">
+                                                                                                                                            <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl mb-4">
+                                                                                                                                                                <div className="w-16 h-16 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
+                                                                                                                                                                                    {productToDelete.image ? (
+                                                                                                                                                                                                        <img src={getImageUrl(productToDelete.image)} alt={productToDelete.name} className="w-full h-full object-cover" />
+                                                                                                                                                                                    ) : (
+                                                                                                                                                                                                        <div className="w-full h-full flex items-center justify-center">
+                                                                                                                                                                                                                            <ImageIcon size={24} className="text-gray-400" />
+                                                                                                                                                                                                        </div>
+                                                                                                                                                                                    )}
+                                                                                                                                                                </div>
+                                                                                                                                                                <div className="flex-1 min-w-0">
+                                                                                                                                                                                    <p className="font-semibold text-gray-900 truncate">{productToDelete.name}</p>
+                                                                                                                                                                                    <p className="text-sm text-gray-500">{productToDelete.category?.name}</p>
+                                                                                                                                                                                    <p className="text-sm font-medium text-green-600">{productToDelete.price.toLocaleString('vi-VN')} đ</p>
+                                                                                                                                                                </div>
+                                                                                                                                            </div>
+
+                                                                                                                                            <p className="text-center text-gray-600 mb-6">
+                                                                                                                                                                Bạn có chắc chắn muốn xóa sản phẩm này?<br />
+                                                                                                                                                                <span className="text-red-500 font-medium">Hành động này không thể hoàn tác.</span>
+                                                                                                                                            </p>
+
+                                                                                                                                            {/* Action buttons */}
+                                                                                                                                            <div className="flex gap-3">
+                                                                                                                                                                <button
+                                                                                                                                                                                    onClick={closeDeleteModal}
+                                                                                                                                                                                    disabled={deleting}
+                                                                                                                                                                                    className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition disabled:opacity-50"
+                                                                                                                                                                >
+                                                                                                                                                                                    Hủy bỏ
+                                                                                                                                                                </button>
+                                                                                                                                                                <button
+                                                                                                                                                                                    onClick={handleDelete}
+                                                                                                                                                                                    disabled={deleting}
+                                                                                                                                                                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition disabled:bg-red-400"
+                                                                                                                                                                >
+                                                                                                                                                                                    <Trash2 size={18} />
+                                                                                                                                                                                    {deleting ? "Đang xóa..." : "Xóa sản phẩm"}
+                                                                                                                                                                </button>
+                                                                                                                                            </div>
+                                                                                                                        </div>
                                                                                                     </div>
                                                                                 </div>
                                                             )}

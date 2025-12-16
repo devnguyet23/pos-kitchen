@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Search, Plus, Minus, Trash2, Save, Image as ImageIcon } from "lucide-react";
+import { X, Search, Plus, Minus, Trash2, Save, Image as ImageIcon, Printer, Check } from "lucide-react";
 import { useToast } from "@/components/Toast";
 
 // Types
@@ -58,6 +58,7 @@ export default function RetailPage() {
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [drafts, setDrafts] = useState<DraftOrder[]>([]);
   const [showDrafts, setShowDrafts] = useState(false);
+  const [showPaymentOptions, setShowPaymentOptions] = useState(false);
 
   // Fetch products and categories
   useEffect(() => {
@@ -204,8 +205,9 @@ export default function RetailPage() {
     localStorage.setItem("pos_drafts", JSON.stringify(updatedDrafts));
   };
 
-  const checkout = async () => {
+  const checkout = async (printInvoice: boolean = false) => {
     if (cart.length === 0) return;
+    setShowPaymentOptions(false);
     try {
       const res = await fetch(`${API_URL}/orders`, {
         method: "POST",
@@ -223,11 +225,17 @@ export default function RetailPage() {
       if (!res.ok) throw new Error("Order failed");
       const order = await res.json();
 
-      await fetch(`${API_URL}/invoices`, {
+      const invoiceRes = await fetch(`${API_URL}/invoices`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tableId: null, orderId: order.id }),
       });
+
+      if (printInvoice && invoiceRes.ok) {
+        const invoice = await invoiceRes.json();
+        // Open print window
+        printInvoiceReceipt(invoice, order);
+      }
 
       toast.success("Thanh toán thành công!");
       setCart([]);
@@ -235,6 +243,52 @@ export default function RetailPage() {
       console.error(error);
       toast.error("Thanh toán thất bại");
     }
+  };
+
+  // Print invoice receipt
+  const printInvoiceReceipt = (invoice: any, order: any) => {
+    const printWindow = window.open('', '_blank', 'width=300,height=600');
+    if (!printWindow) return;
+
+    const receiptHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Hóa đơn #${invoice.id}</title>
+        <style>
+          body { font-family: monospace; font-size: 12px; padding: 10px; width: 280px; }
+          .center { text-align: center; }
+          .bold { font-weight: bold; }
+          .line { border-top: 1px dashed #000; margin: 10px 0; }
+          .item { display: flex; justify-content: space-between; margin: 5px 0; }
+          .total { font-size: 14px; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <div class="center bold" style="font-size: 16px;">HÓA ĐƠN BÁN HÀNG</div>
+        <div class="center">Số: #${invoice.id}</div>
+        <div class="center">${new Date().toLocaleString('vi-VN')}</div>
+        <div class="line"></div>
+        ${cart.map(item => `
+          <div class="item">
+            <span>${item.name} x${item.quantity}</span>
+            <span>${(item.price * item.quantity).toLocaleString('vi-VN')}đ</span>
+          </div>
+          ${item.notes ? `<div style="font-size: 10px; color: gray;">${item.notes}</div>` : ''}
+        `).join('')}
+        <div class="line"></div>
+        <div class="item total">
+          <span>TỔNG CỘNG:</span>
+          <span>${cartTotal.toLocaleString('vi-VN')}đ</span>
+        </div>
+        <div class="line"></div>
+        <div class="center">Cảm ơn quý khách!</div>
+        <script>window.onload = function() { window.print(); }</script>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(receiptHTML);
+    printWindow.document.close();
   };
 
   const cartTotal = cart.reduce((a, b) => a + b.price * b.quantity, 0);
@@ -510,13 +564,47 @@ export default function RetailPage() {
               <span>Tổng cộng:</span>
               <span className="text-blue-600">{cartTotal.toLocaleString("vi-VN")} đ</span>
             </div>
-            <button
-              onClick={checkout}
-              disabled={cart.length === 0}
-              className="w-full bg-blue-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-blue-700 disabled:bg-gray-300"
-            >
-              THANH TOÁN
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowPaymentOptions(true)}
+                disabled={cart.length === 0}
+                className="w-full bg-blue-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-blue-700 disabled:bg-gray-300"
+              >
+                THANH TOÁN
+              </button>
+
+              {/* Payment Options Popup */}
+              {showPaymentOptions && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowPaymentOptions(false)}
+                  />
+                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg shadow-xl border z-50 overflow-hidden">
+                    <button
+                      onClick={() => checkout(false)}
+                      className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 border-b"
+                    >
+                      <Check size={20} className="text-green-600" />
+                      <div>
+                        <div className="font-medium">Hoàn thành</div>
+                        <div className="text-xs text-gray-500">Thanh toán không in hóa đơn</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => checkout(true)}
+                      className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3"
+                    >
+                      <Printer size={20} className="text-blue-600" />
+                      <div>
+                        <div className="font-medium">Hoàn thành - In hóa đơn</div>
+                        <div className="text-xs text-gray-500">Thanh toán và in hóa đơn</div>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>

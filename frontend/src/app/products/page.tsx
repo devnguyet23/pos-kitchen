@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
-import { Plus, Pencil, Trash2, X, Save, Upload, Image as ImageIcon, Search, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Save, Upload, Image as ImageIcon, Search, ArrowUpDown, ChevronLeft, ChevronRight, AlertTriangle, Check } from "lucide-react";
 import { useToast } from "@/components/Toast";
 
 type Category = {
@@ -77,6 +77,12 @@ export default function ProductsPage() {
                     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
                     const [productToDelete, setProductToDelete] = useState<Product | null>(null);
                     const [deleting, setDeleting] = useState(false);
+
+                    // Multi-select states
+                    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+                    const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+                    const [bulkDeleteSuccess, setBulkDeleteSuccess] = useState(false);
+                    const [bulkDeleteProgress, setBulkDeleteProgress] = useState({ current: 0, total: 0, failed: 0 });
 
                     // Debounce search
                     const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -313,6 +319,65 @@ export default function ProductsPage() {
                                         }
                     };
 
+                    // Toggle single selection
+                    const toggleSelect = (id: number) => {
+                                        setSelectedIds(prev =>
+                                                            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+                                        );
+                    };
+
+                    // Toggle all selection (current page)
+                    const toggleSelectAll = () => {
+                                        const currentPageIds = products.map((p: Product) => p.id);
+                                        const allSelected = currentPageIds.every(id => selectedIds.includes(id));
+                                        if (allSelected) {
+                                                            setSelectedIds(prev => prev.filter(id => !currentPageIds.includes(id)));
+                                        } else {
+                                                            const combined = [...selectedIds, ...currentPageIds];
+                                                            setSelectedIds(combined.filter((id, index) => combined.indexOf(id) === index));
+                                        }
+                    };
+
+                    // Check if all on current page are selected
+                    const isAllSelected = products.length > 0 && products.every((p: Product) => selectedIds.includes(p.id));
+                    const isSomeSelected = products.some((p: Product) => selectedIds.includes(p.id));
+
+                    // Open bulk delete modal
+                    const openBulkDeleteModal = () => {
+                                        if (selectedIds.length === 0) return;
+                                        setBulkDeleteProgress({ current: 0, total: selectedIds.length, failed: 0 });
+                                        setBulkDeleteSuccess(false);
+                                        setShowBulkDeleteModal(true);
+                    };
+
+                    // Confirm bulk delete
+                    const confirmBulkDelete = async () => {
+                                        let failed = 0;
+                                        for (let i = 0; i < selectedIds.length; i++) {
+                                                            const id = selectedIds[i];
+                                                            try {
+                                                                                const res = await fetch(`${API_URL}/products/${id}`, {
+                                                                                                    method: "DELETE",
+                                                                                });
+                                                                                if (!res.ok) {
+                                                                                                    failed++;
+                                                                                }
+                                                            } catch {
+                                                                                failed++;
+                                                            }
+                                                            setBulkDeleteProgress({ current: i + 1, total: selectedIds.length, failed });
+                                        }
+
+                                        await fetchProducts();
+                                        setSelectedIds([]);
+                                        setBulkDeleteSuccess(true);
+
+                                        setTimeout(() => {
+                                                            setShowBulkDeleteModal(false);
+                                                            setBulkDeleteSuccess(false);
+                                        }, 2000);
+                    };
+
                     // Normalize Vietnamese text for search
                     const normalizeVietnamese = (str: string) => {
                                         return str
@@ -404,12 +469,44 @@ export default function ProductsPage() {
 
                                                             {/* Products Table */}
                                                             <main className="max-w-7xl mx-auto px-4 py-6">
+                                                                                {/* Selection Bar */}
+                                                                                {selectedIds.length > 0 && (
+                                                                                                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                                                                                                                        <span className="text-blue-700 font-medium">
+                                                                                                                                            Đã chọn {selectedIds.length} sản phẩm
+                                                                                                                        </span>
+                                                                                                                        <div className="flex gap-2">
+                                                                                                                                            <button
+                                                                                                                                                                onClick={() => setSelectedIds([])}
+                                                                                                                                                                className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800"
+                                                                                                                                            >
+                                                                                                                                                                Bỏ chọn
+                                                                                                                                            </button>
+                                                                                                                                            <button
+                                                                                                                                                                onClick={openBulkDeleteModal}
+                                                                                                                                                                className="flex items-center gap-1 px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                                                                                                                                            >
+                                                                                                                                                                <Trash2 size={14} />
+                                                                                                                                                                Xóa đã chọn
+                                                                                                                                            </button>
+                                                                                                                        </div>
+                                                                                                    </div>
+                                                                                )}
+
                                                                                 <div className="bg-white rounded-lg shadow overflow-hidden">
                                                                                                     <table className="w-full">
                                                                                                                         <thead className="bg-gray-50 border-b">
                                                                                                                                             <tr>
-                                                                                                                                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                                                                                                                                                                                    Ảnh
+                                                                                                                                                                <th className="px-4 py-3 text-center w-12">
+                                                                                                                                                                                    <input
+                                                                                                                                                                                                        type="checkbox"
+                                                                                                                                                                                                        checked={isAllSelected}
+                                                                                                                                                                                                        ref={(el) => {
+                                                                                                                                                                                                                            if (el) el.indeterminate = isSomeSelected && !isAllSelected;
+                                                                                                                                                                                                        }}
+                                                                                                                                                                                                        onChange={toggleSelectAll}
+                                                                                                                                                                                                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                                                                                                                                                    />
                                                                                                                                                                 </th>
                                                                                                                                                                 <th
                                                                                                                                                                                     onClick={() => toggleSort("id")}
@@ -419,6 +516,9 @@ export default function ProductsPage() {
                                                                                                                                                                                                         ID
                                                                                                                                                                                                         {sortBy === "id" && <ArrowUpDown size={14} />}
                                                                                                                                                                                     </div>
+                                                                                                                                                                </th>
+                                                                                                                                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
+                                                                                                                                                                                    Ảnh
                                                                                                                                                                 </th>
                                                                                                                                                                 <th
                                                                                                                                                                                     onClick={() => toggleSort("name")}
@@ -454,7 +554,16 @@ export default function ProductsPage() {
                                                                                                                         </thead>
                                                                                                                         <tbody className="divide-y divide-gray-200">
                                                                                                                                             {products.map((product) => (
-                                                                                                                                                                <tr key={product.id} className="hover:bg-gray-50">
+                                                                                                                                                                <tr key={product.id} className={`hover:bg-gray-50 ${selectedIds.includes(product.id) ? 'bg-blue-50' : ''}`}>
+                                                                                                                                                                                    <td className="px-4 py-3 text-center">
+                                                                                                                                                                                                        <input
+                                                                                                                                                                                                                            type="checkbox"
+                                                                                                                                                                                                                            checked={selectedIds.includes(product.id)}
+                                                                                                                                                                                                                            onChange={() => toggleSelect(product.id)}
+                                                                                                                                                                                                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                                                                                                                                                                        />
+                                                                                                                                                                                    </td>
+                                                                                                                                                                                    <td className="px-4 py-3 text-sm text-gray-500">#{product.id}</td>
                                                                                                                                                                                     <td className="px-4 py-3">
                                                                                                                                                                                                         <div className="w-12 h-12 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
                                                                                                                                                                                                                             <img
@@ -467,7 +576,6 @@ export default function ProductsPage() {
                                                                                                                                                                                                                             />
                                                                                                                                                                                                         </div>
                                                                                                                                                                                     </td>
-                                                                                                                                                                                    <td className="px-4 py-3 text-sm text-gray-500">#{product.id}</td>
                                                                                                                                                                                     <td className="px-4 py-3">
                                                                                                                                                                                                         <div className="font-medium text-gray-900">{product.name}</div>
                                                                                                                                                                                     </td>
@@ -519,7 +627,7 @@ export default function ProductsPage() {
                                                                                                                                             ))}
                                                                                                                                             {products.length === 0 && (
                                                                                                                                                                 <tr>
-                                                                                                                                                                                    <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                                                                                                                                                                                    <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
                                                                                                                                                                                                         {products.length === 0
                                                                                                                                                                                                                             ? "Chưa có sản phẩm nào. Nhấn \"Thêm sản phẩm\" để bắt đầu."
                                                                                                                                                                                                                             : "Không tìm thấy sản phẩm phù hợp."
@@ -798,6 +906,71 @@ export default function ProductsPage() {
                                                                                                                                                                 </button>
                                                                                                                                             </div>
                                                                                                                         </div>
+                                                                                                    </div>
+                                                                                </div>
+                                                            )}
+
+                                                            {/* Bulk Delete Modal */}
+                                                            {showBulkDeleteModal && (
+                                                                                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                                                                                                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                                                                                                                        {bulkDeleteSuccess ? (
+                                                                                                                                            <div className="p-8 text-center">
+                                                                                                                                                                <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
+                                                                                                                                                                                    <Check size={32} className="text-green-600" />
+                                                                                                                                                                </div>
+                                                                                                                                                                <h3 className="text-xl font-bold text-gray-900 mb-2">Xóa thành công!</h3>
+                                                                                                                                                                <p className="text-gray-600">
+                                                                                                                                                                                    Đã xóa {bulkDeleteProgress.total - bulkDeleteProgress.failed} sản phẩm.
+                                                                                                                                                                                    {bulkDeleteProgress.failed > 0 && (
+                                                                                                                                                                                                        <span className="text-red-600"> ({bulkDeleteProgress.failed} thất bại)</span>
+                                                                                                                                                                                    )}
+                                                                                                                                                                </p>
+                                                                                                                                            </div>
+                                                                                                                        ) : bulkDeleteProgress.current > 0 ? (
+                                                                                                                                            <div className="p-8 text-center">
+                                                                                                                                                                <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center animate-pulse">
+                                                                                                                                                                                    <Trash2 size={32} className="text-blue-600" />
+                                                                                                                                                                </div>
+                                                                                                                                                                <h3 className="text-xl font-bold text-gray-900 mb-2">Đang xóa...</h3>
+                                                                                                                                                                <p className="text-gray-600 mb-4">
+                                                                                                                                                                                    {bulkDeleteProgress.current} / {bulkDeleteProgress.total}
+                                                                                                                                                                </p>
+                                                                                                                                                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                                                                                                                                                                    <div
+                                                                                                                                                                                                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                                                                                                                                                                                        style={{ width: `${(bulkDeleteProgress.current / bulkDeleteProgress.total) * 100}%` }}
+                                                                                                                                                                                    />
+                                                                                                                                                                </div>
+                                                                                                                                            </div>
+                                                                                                                        ) : (
+                                                                                                                                            <div className="p-8">
+                                                                                                                                                                <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+                                                                                                                                                                                    <AlertTriangle size={32} className="text-red-600" />
+                                                                                                                                                                </div>
+                                                                                                                                                                <h3 className="text-xl font-bold text-center text-gray-900 mb-2">Xóa nhiều sản phẩm?</h3>
+                                                                                                                                                                <p className="text-center text-gray-600 mb-6">
+                                                                                                                                                                                    Bạn sắp xóa <span className="font-bold text-red-600">{selectedIds.length}</span> sản phẩm.<br />
+                                                                                                                                                                                    <span className="text-red-500">Hành động này không thể hoàn tác.</span>
+                                                                                                                                                                </p>
+
+                                                                                                                                                                <div className="flex gap-3">
+                                                                                                                                                                                    <button
+                                                                                                                                                                                                        onClick={() => setShowBulkDeleteModal(false)}
+                                                                                                                                                                                                        className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50"
+                                                                                                                                                                                    >
+                                                                                                                                                                                                        Hủy bỏ
+                                                                                                                                                                                    </button>
+                                                                                                                                                                                    <button
+                                                                                                                                                                                                        onClick={confirmBulkDelete}
+                                                                                                                                                                                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700"
+                                                                                                                                                                                    >
+                                                                                                                                                                                                        <Trash2 size={18} />
+                                                                                                                                                                                                        Xóa tất cả
+                                                                                                                                                                                    </button>
+                                                                                                                                                                </div>
+                                                                                                                                            </div>
+                                                                                                                        )}
                                                                                                     </div>
                                                                                 </div>
                                                             )}

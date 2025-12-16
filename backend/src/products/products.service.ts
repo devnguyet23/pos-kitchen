@@ -35,8 +35,48 @@ export class ProductsService {
                                         return product;
                     }
 
-                    findAll() {
-                                        return this.prisma.product.findMany({
+                    // Normalize Vietnamese text for accent-insensitive search
+                    private normalizeVietnamese(str: string): string {
+                                        return str
+                                                            .normalize("NFD")
+                                                            .replace(/[\u0300-\u036f]/g, "")
+                                                            .replace(/đ/g, "d")
+                                                            .replace(/Đ/g, "D")
+                                                            .toLowerCase();
+                    }
+
+                    async findAll(params: {
+                                        page?: number;
+                                        limit?: number;
+                                        search?: string;
+                                        categoryId?: number;
+                                        sortBy?: 'id' | 'name' | 'price';
+                                        sortOrder?: 'asc' | 'desc';
+                    } = {}) {
+                                        const {
+                                                            page = 1,
+                                                            limit,
+                                                            search,
+                                                            categoryId,
+                                                            sortBy = 'id',
+                                                            sortOrder = 'asc'
+                                        } = params;
+
+                                        // Build where clause (without search - we'll filter in memory)
+                                        const where: any = {};
+
+                                        if (categoryId) {
+                                                            where.categoryId = categoryId;
+                                        }
+
+                                        // Build orderBy
+                                        const orderBy: any = {};
+                                        orderBy[sortBy] = sortOrder;
+
+                                        // Fetch all products (with category filter if provided)
+                                        let allProducts = await this.prisma.product.findMany({
+                                                            where,
+                                                            orderBy,
                                                             include: {
                                                                                 category: true,
                                                                                 modifiers: {
@@ -46,6 +86,35 @@ export class ProductsService {
                                                                                 },
                                                             },
                                         });
+
+                                        // Apply search filter in memory (accent-insensitive)
+                                        if (search) {
+                                                            const normalizedSearch = this.normalizeVietnamese(search);
+                                                            allProducts = allProducts.filter(product =>
+                                                                                this.normalizeVietnamese(product.name).includes(normalizedSearch) ||
+                                                                                this.normalizeVietnamese(product.category?.name || '').includes(normalizedSearch)
+                                                            );
+                                        }
+
+                                        // Calculate total after filtering
+                                        const total = allProducts.length;
+
+                                        // Apply pagination
+                                        let data = allProducts;
+                                        if (limit) {
+                                                            const startIndex = (page - 1) * limit;
+                                                            data = allProducts.slice(startIndex, startIndex + limit);
+                                        }
+
+                                        return {
+                                                            data,
+                                                            pagination: {
+                                                                                page,
+                                                                                limit: limit || total,
+                                                                                total,
+                                                                                totalPages: limit ? Math.ceil(total / limit) : 1
+                                                            }
+                                        };
                     }
 
                     async findOne(id: number) {

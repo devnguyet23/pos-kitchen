@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { Plus, Pencil, Trash2, X, Save, Upload, Image as ImageIcon } from "lucide-react";
+import { useEffect, useState, useRef, useMemo } from "react";
+import { Plus, Pencil, Trash2, X, Save, Upload, Image as ImageIcon, Search, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 type Category = {
                     id: number;
@@ -56,12 +56,57 @@ export default function ProductsPage() {
                     const [uploading, setUploading] = useState(false);
                     const fileInputRef = useRef<HTMLInputElement>(null);
 
-                    // Fetch products
+                    // Filter and sort states
+                    const [searchQuery, setSearchQuery] = useState("");
+                    const [filterCategory, setFilterCategory] = useState<number | null>(null);
+                    const [sortBy, setSortBy] = useState<"id" | "name" | "price">("id");
+                    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+
+                    // Pagination states
+                    const [currentPage, setCurrentPage] = useState(1);
+                    const [pageSize, setPageSize] = useState<number | "all">(20);
+                    const [totalProducts, setTotalProducts] = useState(0);
+                    const [totalPages, setTotalPages] = useState(1);
+
+                    // Debounce search
+                    const [debouncedSearch, setDebouncedSearch] = useState("");
+
+                    // Debounce effect for search
+                    useEffect(() => {
+                                        const timer = setTimeout(() => {
+                                                            setDebouncedSearch(searchQuery);
+                                                            setCurrentPage(1);
+                                        }, 300);
+                                        return () => clearTimeout(timer);
+                    }, [searchQuery]);
+
+                    // Reset page when filters change
+                    useEffect(() => {
+                                        setCurrentPage(1);
+                    }, [filterCategory, sortBy, sortOrder, pageSize]);
+
+                    // Fetch products with pagination
                     const fetchProducts = async () => {
                                         try {
-                                                            const res = await fetch(`${API_URL}/products`);
-                                                            const data = await res.json();
-                                                            setProducts(data);
+                                                            const params = new URLSearchParams();
+                                                            params.append('page', currentPage.toString());
+                                                            if (pageSize !== "all") {
+                                                                                params.append('limit', pageSize.toString());
+                                                            }
+                                                            if (debouncedSearch) {
+                                                                                params.append('search', debouncedSearch);
+                                                            }
+                                                            if (filterCategory !== null) {
+                                                                                params.append('categoryId', filterCategory.toString());
+                                                            }
+                                                            params.append('sortBy', sortBy);
+                                                            params.append('sortOrder', sortOrder);
+
+                                                            const res = await fetch(`${API_URL}/products?${params.toString()}`);
+                                                            const result = await res.json();
+                                                            setProducts(result.data);
+                                                            setTotalProducts(result.pagination.total);
+                                                            setTotalPages(result.pagination.totalPages);
                                         } catch (e) {
                                                             console.error("Failed to fetch products:", e);
                                         }
@@ -89,8 +134,13 @@ export default function ProductsPage() {
                                         }
                     };
 
+                    // Refetch when params change
                     useEffect(() => {
                                         fetchProducts();
+                    }, [currentPage, pageSize, debouncedSearch, filterCategory, sortBy, sortOrder]);
+
+                    // Initial fetch for categories and modifiers
+                    useEffect(() => {
                                         fetchCategories();
                                         fetchModifiers();
                     }, []);
@@ -233,84 +283,254 @@ export default function ProductsPage() {
                                         }
                     };
 
+                    // Normalize Vietnamese text for search
+                    const normalizeVietnamese = (str: string) => {
+                                        return str
+                                                            .normalize("NFD")
+                                                            .replace(/[\u0300-\u036f]/g, "")
+                                                            .replace(/đ/g, "d")
+                                                            .replace(/Đ/g, "D")
+                                                            .toLowerCase();
+                    };
+
+                    // Toggle sort
+                    const toggleSort = (field: "id" | "name" | "price") => {
+                                        if (sortBy === field) {
+                                                            setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                                        } else {
+                                                            setSortBy(field);
+                                                            setSortOrder("asc");
+                                        }
+                    };
+
                     return (
                                         <div className="min-h-screen bg-gray-100">
-                                                            {/* Header */}
                                                             <header className="bg-white shadow">
-                                                                                <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-                                                                                                    <div className="ml-12">
-                                                                                                                        <h1 className="text-2xl font-bold text-gray-800">Quản lý sản phẩm</h1>
-                                                                                                                        <p className="text-gray-500 text-sm">Thêm, sửa, xóa sản phẩm</p>
+                                                                                <div className="max-w-7xl mx-auto px-4 py-4">
+                                                                                                    <div className="flex justify-between items-center mb-4">
+                                                                                                                        <div className="ml-12">
+                                                                                                                                            <h1 className="text-2xl font-bold text-gray-800">Quản lý sản phẩm</h1>
+                                                                                                                                            <p className="text-gray-500 text-sm">Thêm, sửa, xóa sản phẩm</p>
+                                                                                                                        </div>
+                                                                                                                        <button
+                                                                                                                                            onClick={openAddModal}
+                                                                                                                                            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+                                                                                                                        >
+                                                                                                                                            <Plus size={20} />
+                                                                                                                                            Thêm sản phẩm
+                                                                                                                        </button>
                                                                                                     </div>
-                                                                                                    <button
-                                                                                                                        onClick={openAddModal}
-                                                                                                                        className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-                                                                                                    >
-                                                                                                                        <Plus size={20} />
-                                                                                                                        Thêm sản phẩm
-                                                                                                    </button>
+
+                                                                                                    {/* Search, Filter, Sort Bar */}
+                                                                                                    <div className="flex flex-wrap gap-3 items-center ml-12">
+                                                                                                                        {/* Search */}
+                                                                                                                        <div className="relative flex-1 min-w-[200px] max-w-md">
+                                                                                                                                            <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                                                                                                                                            <input
+                                                                                                                                                                type="text"
+                                                                                                                                                                value={searchQuery}
+                                                                                                                                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                                                                                                                                placeholder="Tìm kiếm sản phẩm hoặc danh mục..."
+                                                                                                                                                                className="w-full pl-9 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                                                                                                            />
+                                                                                                                        </div>
+
+                                                                                                                        {/* Category Filter */}
+                                                                                                                        <select
+                                                                                                                                            value={filterCategory ?? ""}
+                                                                                                                                            onChange={(e) => setFilterCategory(e.target.value ? Number(e.target.value) : null)}
+                                                                                                                                            className="px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                                                                                        >
+                                                                                                                                            <option value="">Tất cả danh mục</option>
+                                                                                                                                            {categories.map((cat) => (
+                                                                                                                                                                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                                                                                                                            ))}
+                                                                                                                        </select>
+
+                                                                                                                        {/* Sort */}
+                                                                                                                        <select
+                                                                                                                                            value={`${sortBy}-${sortOrder}`}
+                                                                                                                                            onChange={(e) => {
+                                                                                                                                                                const [field, order] = e.target.value.split("-");
+                                                                                                                                                                setSortBy(field as "id" | "name" | "price");
+                                                                                                                                                                setSortOrder(order as "asc" | "desc");
+                                                                                                                                            }}
+                                                                                                                                            className="px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                                                                                        >
+                                                                                                                                            <option value="id-asc">ID (tăng dần)</option>
+                                                                                                                                            <option value="id-desc">ID (giảm dần)</option>
+                                                                                                                                            <option value="name-asc">Tên (A-Z)</option>
+                                                                                                                                            <option value="name-desc">Tên (Z-A)</option>
+                                                                                                                                            <option value="price-asc">Giá (thấp-cao)</option>
+                                                                                                                                            <option value="price-desc">Giá (cao-thấp)</option>
+                                                                                                                        </select>
+
+                                                                                                                        <span className="text-sm text-gray-500">
+                                                                                                                                            {totalProducts} sản phẩm
+                                                                                                                        </span>
+                                                                                                    </div>
                                                                                 </div>
                                                             </header>
 
-                                                            {/* Products Grid */}
+                                                            {/* Products Table */}
                                                             <main className="max-w-7xl mx-auto px-4 py-6">
-                                                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                                                                                    {products.map((product) => (
-                                                                                                                        <div key={product.id} className="bg-white rounded-lg shadow overflow-hidden hover:shadow-md transition">
-                                                                                                                                            {/* Product Image */}
-                                                                                                                                            <div className="h-40 bg-gray-100 flex items-center justify-center">
-                                                                                                                                                                {product.image ? (
-                                                                                                                                                                                    <img
-                                                                                                                                                                                                        src={getImageUrl(product.image)}
-                                                                                                                                                                                                        alt={product.name}
-                                                                                                                                                                                                        className="w-full h-full object-cover"
-                                                                                                                                                                                    />
-                                                                                                                                                                ) : (
-                                                                                                                                                                                    <ImageIcon size={48} className="text-gray-300" />
-                                                                                                                                                                )}
-                                                                                                                                            </div>
-                                                                                                                                            {/* Product Info */}
-                                                                                                                                            <div className="p-4">
-                                                                                                                                                                <div className="flex justify-between items-start mb-2">
-                                                                                                                                                                                    <h3 className="font-bold text-gray-800 line-clamp-1">{product.name}</h3>
-                                                                                                                                                                                    <span className="text-green-600 font-bold text-sm whitespace-nowrap ml-2">
-                                                                                                                                                                                                        {product.price.toLocaleString("vi-VN")} đ
-                                                                                                                                                                                    </span>
-                                                                                                                                                                </div>
-                                                                                                                                                                <div className="flex items-center justify-between">
-                                                                                                                                                                                    <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                                                                                                                                                                                                        {product.category?.name || "N/A"}
-                                                                                                                                                                                    </span>
-                                                                                                                                                                                    <div className="flex gap-1">
-                                                                                                                                                                                                        <button
-                                                                                                                                                                                                                            onClick={() => openEditModal(product)}
-                                                                                                                                                                                                                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                                                                                                                                                                                                        >
-                                                                                                                                                                                                                            <Pencil size={16} />
-                                                                                                                                                                                                        </button>
-                                                                                                                                                                                                        <button
-                                                                                                                                                                                                                            onClick={() => handleDelete(product.id)}
-                                                                                                                                                                                                                            className="p-1 text-red-600 hover:bg-red-50 rounded"
-                                                                                                                                                                                                        >
-                                                                                                                                                                                                                            <Trash2 size={16} />
-                                                                                                                                                                                                        </button>
+                                                                                <div className="bg-white rounded-lg shadow overflow-hidden">
+                                                                                                    <table className="w-full">
+                                                                                                                        <thead className="bg-gray-50 border-b">
+                                                                                                                                            <tr>
+                                                                                                                                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
+                                                                                                                                                                                    Ảnh
+                                                                                                                                                                </th>
+                                                                                                                                                                <th
+                                                                                                                                                                                    onClick={() => toggleSort("id")}
+                                                                                                                                                                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-20"
+                                                                                                                                                                >
+                                                                                                                                                                                    <div className="flex items-center gap-1">
+                                                                                                                                                                                                        ID
+                                                                                                                                                                                                        {sortBy === "id" && <ArrowUpDown size={14} />}
                                                                                                                                                                                     </div>
-                                                                                                                                                                </div>
-                                                                                                                                                                {product.modifiers && product.modifiers.length > 0 && (
-                                                                                                                                                                                    <div className="flex flex-wrap gap-1 mt-2">
-                                                                                                                                                                                                        {product.modifiers.map((pm) => (
-                                                                                                                                                                                                                            <span key={pm.modifierId} className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded">
-                                                                                                                                                                                                                                                {pm.modifier.name}
-                                                                                                                                                                                                                            </span>
-                                                                                                                                                                                                        ))}
+                                                                                                                                                                </th>
+                                                                                                                                                                <th
+                                                                                                                                                                                    onClick={() => toggleSort("name")}
+                                                                                                                                                                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                                                                                                                                                >
+                                                                                                                                                                                    <div className="flex items-center gap-1">
+                                                                                                                                                                                                        Tên sản phẩm
+                                                                                                                                                                                                        {sortBy === "name" && <ArrowUpDown size={14} />}
                                                                                                                                                                                     </div>
-                                                                                                                                                                )}
+                                                                                                                                                                </th>
+                                                                                                                                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                                                                                                                                                    Danh mục
+                                                                                                                                                                </th>
+                                                                                                                                                                <th
+                                                                                                                                                                                    onClick={() => toggleSort("price")}
+                                                                                                                                                                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                                                                                                                                                >
+                                                                                                                                                                                    <div className="flex items-center gap-1">
+                                                                                                                                                                                                        Giá
+                                                                                                                                                                                                        {sortBy === "price" && <ArrowUpDown size={14} />}
+                                                                                                                                                                                    </div>
+                                                                                                                                                                </th>
+                                                                                                                                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                                                                                                                                                    Modifiers
+                                                                                                                                                                </th>
+                                                                                                                                                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                                                                                                                                                                                    Thao tác
+                                                                                                                                                                </th>
+                                                                                                                                            </tr>
+                                                                                                                        </thead>
+                                                                                                                        <tbody className="divide-y divide-gray-200">
+                                                                                                                                            {products.map((product) => (
+                                                                                                                                                                <tr key={product.id} className="hover:bg-gray-50">
+                                                                                                                                                                                    <td className="px-4 py-3">
+                                                                                                                                                                                                        <div className="w-12 h-12 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
+                                                                                                                                                                                                                            {product.image ? (
+                                                                                                                                                                                                                                                <img src={getImageUrl(product.image)} alt={product.name} className="w-full h-full object-cover" />
+                                                                                                                                                                                                                            ) : (
+                                                                                                                                                                                                                                                <ImageIcon size={20} className="text-gray-300" />
+                                                                                                                                                                                                                            )}
+                                                                                                                                                                                                        </div>
+                                                                                                                                                                                    </td>
+                                                                                                                                                                                    <td className="px-4 py-3 text-sm text-gray-500">#{product.id}</td>
+                                                                                                                                                                                    <td className="px-4 py-3">
+                                                                                                                                                                                                        <div className="font-medium text-gray-900">{product.name}</div>
+                                                                                                                                                                                    </td>
+                                                                                                                                                                                    <td className="px-4 py-3">
+                                                                                                                                                                                                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                                                                                                                                                                                                                            {product.category?.name || "N/A"}
+                                                                                                                                                                                                        </span>
+                                                                                                                                                                                    </td>
+                                                                                                                                                                                    <td className="px-4 py-3">
+                                                                                                                                                                                                        <span className="font-bold text-green-600">
+                                                                                                                                                                                                                            {product.price.toLocaleString("vi-VN")} đ
+                                                                                                                                                                                                        </span>
+                                                                                                                                                                                    </td>
+                                                                                                                                                                                    <td className="px-4 py-3">
+                                                                                                                                                                                                        <div className="flex flex-wrap gap-1">
+                                                                                                                                                                                                                            {product.modifiers && product.modifiers.length > 0 ? (
+                                                                                                                                                                                                                                                product.modifiers.map((pm) => (
+                                                                                                                                                                                                                                                                    <span key={pm.modifierId} className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded">
+                                                                                                                                                                                                                                                                                        {pm.modifier.name}
+                                                                                                                                                                                                                                                                    </span>
+                                                                                                                                                                                                                                                ))
+                                                                                                                                                                                                                            ) : (
+                                                                                                                                                                                                                                                <span className="text-gray-400 text-xs">-</span>
+                                                                                                                                                                                                                            )}
+                                                                                                                                                                                                        </div>
+                                                                                                                                                                                    </td>
+                                                                                                                                                                                    <td className="px-4 py-3 text-right">
+                                                                                                                                                                                                        <div className="flex justify-end gap-1">
+                                                                                                                                                                                                                            <button
+                                                                                                                                                                                                                                                onClick={() => openEditModal(product)}
+                                                                                                                                                                                                                                                className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                                                                                                                                                                                                                            >
+                                                                                                                                                                                                                                                <Pencil size={16} />
+                                                                                                                                                                                                                            </button>
+                                                                                                                                                                                                                            <button
+                                                                                                                                                                                                                                                onClick={() => handleDelete(product.id)}
+                                                                                                                                                                                                                                                className="p-2 text-red-600 hover:bg-red-50 rounded"
+                                                                                                                                                                                                                            >
+                                                                                                                                                                                                                                                <Trash2 size={16} />
+                                                                                                                                                                                                                            </button>
+                                                                                                                                                                                                        </div>
+                                                                                                                                                                                    </td>
+                                                                                                                                                                </tr>
+                                                                                                                                            ))}
+                                                                                                                                            {products.length === 0 && (
+                                                                                                                                                                <tr>
+                                                                                                                                                                                    <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                                                                                                                                                                                                        {products.length === 0
+                                                                                                                                                                                                                            ? "Chưa có sản phẩm nào. Nhấn \"Thêm sản phẩm\" để bắt đầu."
+                                                                                                                                                                                                                            : "Không tìm thấy sản phẩm phù hợp."
+                                                                                                                                                                                                        }
+                                                                                                                                                                                    </td>
+                                                                                                                                                                </tr>
+                                                                                                                                            )}
+                                                                                                                        </tbody>
+                                                                                                    </table>
+
+                                                                                                    {/* Pagination */}
+                                                                                                    {totalProducts > 0 && (
+                                                                                                                        <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
+                                                                                                                                            <div className="flex items-center gap-2">
+                                                                                                                                                                <span className="text-sm text-gray-500">Hiển thị:</span>
+                                                                                                                                                                <select
+                                                                                                                                                                                    value={pageSize}
+                                                                                                                                                                                    onChange={(e) => setPageSize(e.target.value === "all" ? "all" : Number(e.target.value))}
+                                                                                                                                                                                    className="px-2 py-1 border rounded text-sm"
+                                                                                                                                                                >
+                                                                                                                                                                                    <option value={10}>10</option>
+                                                                                                                                                                                    <option value={20}>20</option>
+                                                                                                                                                                                    <option value={30}>30</option>
+                                                                                                                                                                                    <option value={50}>50</option>
+                                                                                                                                                                                    <option value="all">Tất cả</option>
+                                                                                                                                                                </select>
+                                                                                                                                                                <span className="text-sm text-gray-500">
+                                                                                                                                                                                    / {totalProducts} sản phẩm
+                                                                                                                                                                </span>
                                                                                                                                             </div>
-                                                                                                                        </div>
-                                                                                                    ))}
-                                                                                                    {products.length === 0 && (
-                                                                                                                        <div className="col-span-full text-center py-12 text-gray-500">
-                                                                                                                                            Chưa có sản phẩm nào. Nhấn "Thêm sản phẩm" để bắt đầu.
+
+                                                                                                                                            {pageSize !== "all" && totalPages > 1 && (
+                                                                                                                                                                <div className="flex items-center gap-2">
+                                                                                                                                                                                    <button
+                                                                                                                                                                                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                                                                                                                                                                        disabled={currentPage === 1}
+                                                                                                                                                                                                        className="p-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                                                                                                                    >
+                                                                                                                                                                                                        <ChevronLeft size={18} />
+                                                                                                                                                                                    </button>
+                                                                                                                                                                                    <span className="text-sm">
+                                                                                                                                                                                                        Trang {currentPage} / {totalPages}
+                                                                                                                                                                                    </span>
+                                                                                                                                                                                    <button
+                                                                                                                                                                                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                                                                                                                                                                        disabled={currentPage === totalPages}
+                                                                                                                                                                                                        className="p-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                                                                                                                    >
+                                                                                                                                                                                                        <ChevronRight size={18} />
+                                                                                                                                                                                    </button>
+                                                                                                                                                                </div>
+                                                                                                                                            )}
                                                                                                                         </div>
                                                                                                     )}
                                                                                 </div>

@@ -83,4 +83,213 @@ export class ReportsService {
 
     return result;
   }
+
+  async getRevenueByProduct(from: string, to: string, interval: 'day' | 'month' | 'year') {
+    const startDate = new Date(from);
+    const endDate = new Date(to);
+
+    // Fetch invoices with order items and products
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        createdAt: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      include: {
+        order: {
+          include: {
+            items: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Get all products for consistent ordering
+    const allProducts = await this.prisma.product.findMany({
+      orderBy: { id: 'asc' },
+    });
+
+    // Aggregate data by date and product
+    const dataMap: Record<string, Record<number, number>> = {};
+
+    for (const inv of invoices) {
+      const date = new Date(inv.createdAt);
+      let key = '';
+
+      if (interval === 'day') {
+        key = date.toISOString().split('T')[0];
+      } else if (interval === 'month') {
+        key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      } else if (interval === 'year') {
+        key = `${date.getFullYear()}`;
+      }
+
+      if (!dataMap[key]) {
+        dataMap[key] = {};
+      }
+
+      for (const item of inv.order.items) {
+        const productId = item.productId;
+        const revenue = item.quantity * item.product.price;
+        dataMap[key][productId] = (dataMap[key][productId] || 0) + revenue;
+      }
+    }
+
+    // Build result with all dates filled in
+    const result: { date: string, products: { productId: number, productName: string, revenue: number }[] }[] = [];
+    const dateKeys = this.generateDateKeys(startDate, endDate, interval);
+
+    for (const key of dateKeys) {
+      const products = allProducts.map(p => ({
+        productId: p.id,
+        productName: p.name,
+        revenue: dataMap[key]?.[p.id] || 0,
+      })).filter(p => p.revenue > 0 || dateKeys.some(dk => dataMap[dk]?.[p.productId] > 0));
+
+      result.push({ date: key, products });
+    }
+
+    // Get unique products that have any revenue
+    const activeProductIds = new Set<number>();
+    for (const key of dateKeys) {
+      if (dataMap[key]) {
+        Object.keys(dataMap[key]).forEach(id => activeProductIds.add(Number(id)));
+      }
+    }
+
+    const legend = allProducts
+      .filter(p => activeProductIds.has(p.id))
+      .map(p => ({ productId: p.id, productName: p.name }));
+
+    return { data: result, legend };
+  }
+
+  async getRevenueByCategory(from: string, to: string, interval: 'day' | 'month' | 'year') {
+    const startDate = new Date(from);
+    const endDate = new Date(to);
+
+    // Fetch invoices with order items, products, and categories
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        createdAt: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      include: {
+        order: {
+          include: {
+            items: {
+              include: {
+                product: {
+                  include: {
+                    category: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Get all categories
+    const allCategories = await this.prisma.category.findMany({
+      orderBy: { id: 'asc' },
+    });
+
+    // Aggregate data by date and category
+    const dataMap: Record<string, Record<number, number>> = {};
+
+    for (const inv of invoices) {
+      const date = new Date(inv.createdAt);
+      let key = '';
+
+      if (interval === 'day') {
+        key = date.toISOString().split('T')[0];
+      } else if (interval === 'month') {
+        key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      } else if (interval === 'year') {
+        key = `${date.getFullYear()}`;
+      }
+
+      if (!dataMap[key]) {
+        dataMap[key] = {};
+      }
+
+      for (const item of inv.order.items) {
+        const categoryId = item.product.categoryId;
+        const revenue = item.quantity * item.product.price;
+        dataMap[key][categoryId] = (dataMap[key][categoryId] || 0) + revenue;
+      }
+    }
+
+    // Build result with all dates filled in
+    const result: { date: string, categories: { categoryId: number, categoryName: string, revenue: number }[] }[] = [];
+    const dateKeys = this.generateDateKeys(startDate, endDate, interval);
+
+    for (const key of dateKeys) {
+      const categories = allCategories.map(c => ({
+        categoryId: c.id,
+        categoryName: c.name,
+        revenue: dataMap[key]?.[c.id] || 0,
+      }));
+
+      result.push({ date: key, categories });
+    }
+
+    // Get unique categories that have any revenue
+    const activeCategoryIds = new Set<number>();
+    for (const key of dateKeys) {
+      if (dataMap[key]) {
+        Object.keys(dataMap[key]).forEach(id => activeCategoryIds.add(Number(id)));
+      }
+    }
+
+    const legend = allCategories
+      .filter(c => activeCategoryIds.has(c.id))
+      .map(c => ({ categoryId: c.id, categoryName: c.name }));
+
+    return { data: result, legend };
+  }
+
+  private generateDateKeys(startDate: Date, endDate: Date, interval: 'day' | 'month' | 'year'): string[] {
+    const keys: string[] = [];
+
+    if (interval === 'day') {
+      const current = new Date(startDate);
+      while (current <= endDate) {
+        keys.push(current.toISOString().split('T')[0]);
+        current.setDate(current.getDate() + 1);
+      }
+    } else if (interval === 'month') {
+      let year = startDate.getFullYear();
+      let month = startDate.getMonth();
+      const endYear = endDate.getFullYear();
+      const endMonth = endDate.getMonth();
+
+      while (year < endYear || (year === endYear && month <= endMonth)) {
+        keys.push(`${year}-${String(month + 1).padStart(2, '0')}`);
+        month++;
+        if (month > 11) {
+          month = 0;
+          year++;
+        }
+      }
+    } else if (interval === 'year') {
+      for (let year = startDate.getFullYear(); year <= endDate.getFullYear(); year++) {
+        keys.push(`${year}`);
+      }
+    }
+
+    return keys;
+  }
 }
+

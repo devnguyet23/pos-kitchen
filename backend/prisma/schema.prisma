@@ -33,6 +33,7 @@ model Product {
   name        String
   price       Float
   image       String?        // URL or base64 image
+  status      Int            @default(1) // 0: hidden, 1: visible
   categoryId  Int
   category    Category       @relation(fields: [categoryId], references: [id])
   modifiers   ProductModifier[]

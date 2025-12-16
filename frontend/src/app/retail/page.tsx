@@ -21,6 +21,7 @@ type Product = {
   name: string;
   price: number;
   image?: string;
+  status?: number; // 0: hidden, 1: visible
   categoryId: number;
   category: Category;
   modifiers: { modifier: ModifierOption }[];
@@ -55,18 +56,45 @@ export default function RetailPage() {
 
   // New states
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [drafts, setDrafts] = useState<DraftOrder[]>([]);
   const [showDrafts, setShowDrafts] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
 
-  // Fetch products and categories
+  // Debounce search input
   useEffect(() => {
-    fetch(`${API_URL}/products`)
-      .then((res) => res.json())
-      .then((data) => setProducts(data))
-      .catch((e) => console.error(e));
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
+  // Fetch products from API with search and category filters
+  const fetchProducts = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (debouncedSearch) {
+        params.append('search', debouncedSearch);
+      }
+      if (selectedCategory !== null) {
+        params.append('categoryId', selectedCategory.toString());
+      }
+      const res = await fetch(`${API_URL}/products?${params.toString()}`);
+      const result = await res.json();
+      setProducts(result.data || result);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Refetch products when search or category changes
+  useEffect(() => {
+    fetchProducts();
+  }, [debouncedSearch, selectedCategory]);
+
+  // Fetch categories
+  useEffect(() => {
     fetch(`${API_URL}/categories`)
       .then((res) => res.json())
       .then((data) => setCategories(data))
@@ -98,13 +126,10 @@ export default function RetailPage() {
       .toLowerCase();
   };
 
-  // Filter products with accent-insensitive search
-  const filteredProducts = products.filter((p) => {
-    const normalizedName = normalizeVietnamese(p.name);
-    const normalizedQuery = normalizeVietnamese(searchQuery);
-    const matchesSearch = normalizedName.includes(normalizedQuery);
-    const matchesCategory = selectedCategory === null || p.categoryId === selectedCategory;
-    return matchesSearch && matchesCategory;
+  // Filter only visible products (status = 1) - search/category filtering is now done by API
+  const filteredProducts = products.filter((p: Product) => {
+    // Only show visible products (status = 1)
+    return p.status === undefined || p.status === 1;
   });
 
   const handleProductClick = (product: Product) => {

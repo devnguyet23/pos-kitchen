@@ -24,6 +24,7 @@ type Product = {
                     name: string;
                     price: number;
                     image?: string;
+                    status: number; // 0: hidden, 1: visible
                     categoryId: number;
                     category: Category;
                     modifiers?: ProductModifier[];
@@ -33,6 +34,7 @@ type ProductFormData = {
                     name: string;
                     price: number;
                     image: string;
+                    status: number;
                     categoryId: number;
                     modifierIds: number[];
 };
@@ -49,6 +51,7 @@ export default function ProductsPage() {
                                         name: "",
                                         price: 0,
                                         image: "",
+                                        status: 1,
                                         categoryId: 1,
                                         modifierIds: [],
                     });
@@ -152,6 +155,7 @@ export default function ProductsPage() {
                                                             name: "",
                                                             price: 0,
                                                             image: "",
+                                                            status: 1,
                                                             categoryId: categories[0]?.id || 1,
                                                             modifierIds: [],
                                         });
@@ -165,6 +169,7 @@ export default function ProductsPage() {
                                                             name: product.name,
                                                             price: product.price,
                                                             image: product.image || "",
+                                                            status: product.status ?? 1,
                                                             categoryId: product.categoryId,
                                                             modifierIds: product.modifiers?.map((m) => m.modifierId) || [],
                                         });
@@ -412,6 +417,9 @@ export default function ProductsPage() {
                                                                                                                                                                                     </div>
                                                                                                                                                                 </th>
                                                                                                                                                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                                                                                                                                                    Trạng thái
+                                                                                                                                                                </th>
+                                                                                                                                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                                                                                                                                                     Modifiers
                                                                                                                                                                 </th>
                                                                                                                                                                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
@@ -443,6 +451,11 @@ export default function ProductsPage() {
                                                                                                                                                                                     <td className="px-4 py-3">
                                                                                                                                                                                                         <span className="font-bold text-green-600">
                                                                                                                                                                                                                             {product.price.toLocaleString("vi-VN")} đ
+                                                                                                                                                                                                        </span>
+                                                                                                                                                                                    </td>
+                                                                                                                                                                                    <td className="px-4 py-3">
+                                                                                                                                                                                                        <span className={`px-2 py-1 text-xs rounded ${product.status === 1 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                                                                                                                                                                                            {product.status === 1 ? 'Hiện' : 'Ẩn'}
                                                                                                                                                                                                         </span>
                                                                                                                                                                                     </td>
                                                                                                                                                                                     <td className="px-4 py-3">
@@ -635,6 +648,23 @@ export default function ProductsPage() {
                                                                                                                                                                                                         </option>
                                                                                                                                                                                     ))}
                                                                                                                                                                 </select>
+                                                                                                                                            </div>
+
+                                                                                                                                            {/* Status Toggle */}
+                                                                                                                                            <div className="flex items-center justify-between">
+                                                                                                                                                                <label className="block text-sm font-medium text-gray-700">
+                                                                                                                                                                                    Trạng thái hiển thị
+                                                                                                                                                                </label>
+                                                                                                                                                                <button
+                                                                                                                                                                                    type="button"
+                                                                                                                                                                                    onClick={() => setFormData({ ...formData, status: formData.status === 1 ? 0 : 1 })}
+                                                                                                                                                                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.status === 1 ? 'bg-green-500' : 'bg-gray-300'}`}
+                                                                                                                                                                >
+                                                                                                                                                                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.status === 1 ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                                                                                                                                </button>
+                                                                                                                                                                <span className={`text-sm font-medium ${formData.status === 1 ? 'text-green-600' : 'text-gray-500'}`}>
+                                                                                                                                                                                    {formData.status === 1 ? 'Hiện' : 'Ẩn'}
+                                                                                                                                                                </span>
                                                                                                                                             </div>
 
                                                                                                                                             {/* Modifiers Selection */}

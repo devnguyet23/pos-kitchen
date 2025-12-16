@@ -14,6 +14,10 @@ export class CreateProductDto {
                     @IsInt()
                     categoryId: number;
 
+                    @IsInt()
+                    @IsOptional()
+                    status?: number; // 0: hidden, 1: visible
+
                     @IsArray()
                     @IsOptional()
                     modifierIds?: number[];
@@ -36,7 +40,12 @@ export class UpdateProductDto {
                     @IsOptional()
                     categoryId?: number;
 
+                    @IsInt()
+                    @IsOptional()
+                    status?: number; // 0: hidden, 1: visible
+
                     @IsArray()
                     @IsOptional()
                     modifierIds?: number[];
 }
+

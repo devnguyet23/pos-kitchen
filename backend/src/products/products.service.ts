@@ -13,6 +13,8 @@ export class ProductsService {
                                                             data: {
                                                                                 name: data.name,
                                                                                 price: data.price,
+                                                                                image: data.image,
+                                                                                status: data.status ?? 1,
                                                                                 category: { connect: { id: data.categoryId } },
                                                                                 ...(modifierIds && modifierIds.length > 0 && {
                                                                                                     modifiers: {

@@ -7,6 +7,7 @@ interface ProductRevenue {
                     productId: number;
                     productName: string;
                     revenue: number;
+                    quantity: number;
 }
 
 interface ReportData {
@@ -30,6 +31,7 @@ export default function ReportsProductsPage() {
                     const [data, setData] = useState<ReportData[]>([]);
                     const [legend, setLegend] = useState<LegendItem[]>([]);
                     const [interval, setInterval] = useState<"day" | "month" | "year">("day");
+                    const [metric, setMetric] = useState<"revenue" | "quantity">("revenue");
                     const [loading, setLoading] = useState(false);
 
                     // Filter states for Day mode (default to today only)
@@ -81,10 +83,28 @@ export default function ReportsProductsPage() {
                     const totalRevenue = data.reduce((sum, d) =>
                                         sum + d.products.reduce((pSum, p) => pSum + p.revenue, 0), 0
                     );
+                    const totalQuantity = data.reduce((sum, d) =>
+                                        sum + d.products.reduce((pSum, p) => pSum + p.quantity, 0), 0
+                    );
 
-                    const formatCurrency = (value: number) => {
-                                        if (value >= 1000000) return `${(value / 1000000).toFixed(1)}Tr`;
-                                        if (value >= 1000) return `${(value / 1000).toFixed(0)}N`;
+                    // Calculate totals per product
+                    const productTotals: Record<number, { revenue: number; quantity: number }> = {};
+                    data.forEach(d => {
+                                        d.products.forEach(p => {
+                                                            if (!productTotals[p.productId]) {
+                                                                                productTotals[p.productId] = { revenue: 0, quantity: 0 };
+                                                            }
+                                                            productTotals[p.productId].revenue += p.revenue;
+                                                            productTotals[p.productId].quantity += p.quantity;
+                                        });
+                    });
+
+                    const formatValue = (value: number) => {
+                                        if (metric === "revenue") {
+                                                            if (value >= 1000000) return `${(value / 1000000).toFixed(1)}Tr`;
+                                                            if (value >= 1000) return `${(value / 1000).toFixed(0)}N`;
+                                                            return value.toLocaleString("vi-VN");
+                                        }
                                         return value.toLocaleString("vi-VN");
                     };
 
@@ -92,6 +112,8 @@ export default function ReportsProductsPage() {
                                         const index = legend.findIndex(l => l.productId === productId);
                                         return COLORS[index % COLORS.length];
                     };
+
+                    const getValue = (p: ProductRevenue) => metric === "revenue" ? p.revenue : p.quantity;
 
                     return (
                                         <div className="p-6">
@@ -101,10 +123,14 @@ export default function ReportsProductsPage() {
                                                             </h1>
 
                                                             {/* Summary Cards */}
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                                                                 <div className="bg-white p-6 rounded-lg shadow">
                                                                                                     <p className="text-gray-500 text-sm">Tổng doanh thu</p>
                                                                                                     <p className="text-3xl font-bold text-emerald-600">{totalRevenue.toLocaleString("vi-VN")} đ</p>
+                                                                                </div>
+                                                                                <div className="bg-white p-6 rounded-lg shadow">
+                                                                                                    <p className="text-gray-500 text-sm">Tổng số lượng</p>
+                                                                                                    <p className="text-3xl font-bold text-purple-600">{totalQuantity.toLocaleString("vi-VN")}</p>
                                                                                 </div>
                                                                                 <div className="bg-white p-6 rounded-lg shadow">
                                                                                                     <p className="text-gray-500 text-sm">Số sản phẩm có doanh thu</p>
@@ -115,6 +141,21 @@ export default function ReportsProductsPage() {
                                                             {/* Filters */}
                                                             <div className="bg-white rounded-lg shadow p-4 mb-6">
                                                                                 <div className="flex flex-wrap items-center gap-4">
+                                                                                                    {/* Metric Selector */}
+                                                                                                    <div className="flex items-center gap-2">
+                                                                                                                        <label className="text-sm text-gray-600">Hiển thị:</label>
+                                                                                                                        <select
+                                                                                                                                            value={metric}
+                                                                                                                                            onChange={(e) => setMetric(e.target.value as "revenue" | "quantity")}
+                                                                                                                                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-medium"
+                                                                                                                        >
+                                                                                                                                            <option value="revenue">Doanh thu</option>
+                                                                                                                                            <option value="quantity">Số lượng</option>
+                                                                                                                        </select>
+                                                                                                    </div>
+
+                                                                                                    <div className="w-px h-8 bg-gray-200" />
+
                                                                                                     {/* Interval Selector */}
                                                                                                     <div className="flex rounded-lg overflow-hidden border border-gray-200">
                                                                                                                         {(["day", "month", "year"] as const).map((intv) => (
@@ -122,8 +163,8 @@ export default function ReportsProductsPage() {
                                                                                                                                                                 key={intv}
                                                                                                                                                                 onClick={() => setInterval(intv)}
                                                                                                                                                                 className={`px-4 py-2 text-sm font-medium transition ${interval === intv
-                                                                                                                                                                                                        ? "bg-emerald-500 text-white"
-                                                                                                                                                                                                        : "bg-white text-gray-600 hover:bg-gray-100"
+                                                                                                                                                                                    ? "bg-emerald-500 text-white"
+                                                                                                                                                                                    : "bg-white text-gray-600 hover:bg-gray-100"
                                                                                                                                                                                     }`}
                                                                                                                                             >
                                                                                                                                                                 {intv === "day" ? "Ngày" : intv === "month" ? "Tháng" : "Năm"}
@@ -238,20 +279,39 @@ export default function ReportsProductsPage() {
                                                                                 </div>
                                                             </div>
 
-                                                            {/* Legend */}
+                                                            {/* Legend - Scrollable with totals */}
                                                             {legend.length > 0 && (
                                                                                 <div className="bg-white rounded-lg shadow p-4 mb-6">
-                                                                                                    <h3 className="text-sm font-medium text-gray-600 mb-3">Chú thích sản phẩm</h3>
-                                                                                                    <div className="flex flex-wrap gap-4">
-                                                                                                                        {legend.map((item) => (
-                                                                                                                                            <div key={item.productId} className="flex items-center gap-2">
-                                                                                                                                                                <div
-                                                                                                                                                                                    className="w-4 h-4 rounded"
-                                                                                                                                                                                    style={{ backgroundColor: getProductColor(item.productId) }}
-                                                                                                                                                                />
-                                                                                                                                                                <span className="text-sm text-gray-700">{item.productName}</span>
-                                                                                                                                            </div>
-                                                                                                                        ))}
+                                                                                                    <h3 className="text-sm font-medium text-gray-600 mb-3">
+                                                                                                                        Chú thích sản phẩm ({legend.length} sản phẩm)
+                                                                                                    </h3>
+                                                                                                    <div className="max-h-48 overflow-y-auto border border-gray-100 rounded-lg">
+                                                                                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1 p-2">
+                                                                                                                                            {legend.map((item) => {
+                                                                                                                                                                const totals = productTotals[item.productId] || { revenue: 0, quantity: 0 };
+                                                                                                                                                                const displayValue = metric === "revenue"
+                                                                                                                                                                                    ? `${totals.revenue.toLocaleString("vi-VN")} đ`
+                                                                                                                                                                                    : `${totals.quantity.toLocaleString("vi-VN")} sp`;
+
+                                                                                                                                                                return (
+                                                                                                                                                                                    <div
+                                                                                                                                                                                                        key={item.productId}
+                                                                                                                                                                                                        className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition border border-gray-100"
+                                                                                                                                                                                    >
+                                                                                                                                                                                                        <div
+                                                                                                                                                                                                                            className="w-3 h-3 rounded flex-shrink-0"
+                                                                                                                                                                                                                            style={{ backgroundColor: getProductColor(item.productId) }}
+                                                                                                                                                                                                        />
+                                                                                                                                                                                                        <div className="flex-1 min-w-0">
+                                                                                                                                                                                                                            <div className="text-sm text-gray-700 truncate" title={item.productName}>
+                                                                                                                                                                                                                                                {item.productName}
+                                                                                                                                                                                                                            </div>
+                                                                                                                                                                                                                            <div className="text-xs text-gray-500 font-medium">{displayValue}</div>
+                                                                                                                                                                                                        </div>
+                                                                                                                                                                                    </div>
+                                                                                                                                                                );
+                                                                                                                                            })}
+                                                                                                                        </div>
                                                                                                     </div>
                                                                                 </div>
                                                             )}
@@ -260,7 +320,7 @@ export default function ReportsProductsPage() {
                                                             <div className="bg-white rounded-lg shadow p-6 mb-8">
                                                                                 <div className="flex justify-between items-center mb-6">
                                                                                                     <h2 className="text-xl font-bold text-gray-800">
-                                                                                                                        Biểu đồ doanh thu theo {interval === 'day' ? 'ngày' : interval === 'month' ? 'tháng' : 'năm'}
+                                                                                                                        Biểu đồ {metric === "revenue" ? "doanh thu" : "số lượng"} theo {interval === 'day' ? 'ngày' : interval === 'month' ? 'tháng' : 'năm'}
                                                                                                     </h2>
                                                                                                     <div className="text-sm text-gray-500">
                                                                                                                         {data.length > 0 && `${data.length} ${interval === 'day' ? 'ngày' : interval === 'month' ? 'tháng' : 'năm'}`}
@@ -285,9 +345,9 @@ export default function ReportsProductsPage() {
                                                                                                                         chartData = data.slice(0, 31);
                                                                                                     }
 
-                                                                                                    // Calculate max total revenue for scaling
+                                                                                                    // Calculate max total for scaling
                                                                                                     const maxTotal = Math.max(...chartData.map(d =>
-                                                                                                                        d.products.reduce((sum, p) => sum + p.revenue, 0)
+                                                                                                                        d.products.reduce((sum, p) => sum + getValue(p), 0)
                                                                                                     )) || 1;
 
                                                                                                     const chartHeight = 256;
@@ -311,8 +371,8 @@ export default function ReportsProductsPage() {
                                                                                                                                                                                     style={{ height: chartHeight + 40, gap: `${gap}px` }}
                                                                                                                                                                 >
                                                                                                                                                                                     {chartData.map((row, idx) => {
-                                                                                                                                                                                                        const totalRevenue = row.products.reduce((sum, p) => sum + p.revenue, 0);
-                                                                                                                                                                                                        const totalHeight = (totalRevenue / maxTotal) * chartHeight;
+                                                                                                                                                                                                        const total = row.products.reduce((sum, p) => sum + getValue(p), 0);
+                                                                                                                                                                                                        const totalHeight = (total / maxTotal) * chartHeight;
 
                                                                                                                                                                                                         return (
                                                                                                                                                                                                                             <div
@@ -325,20 +385,26 @@ export default function ReportsProductsPage() {
                                                                                                                                                                                                                                                                     className="absolute left-1/2 transform -translate-x-1/2 text-gray-700 font-semibold whitespace-nowrap"
                                                                                                                                                                                                                                                                     style={{ bottom: totalHeight + 4, fontSize: itemCount <= 14 ? '10px' : '9px' }}
                                                                                                                                                                                                                                                 >
-                                                                                                                                                                                                                                                                    {totalRevenue > 0 ? formatCurrency(totalRevenue) : ''}
+                                                                                                                                                                                                                                                                    {total > 0 ? formatValue(total) : ''}
                                                                                                                                                                                                                                                 </div>
 
                                                                                                                                                                                                                                                 {/* Tooltip */}
                                                                                                                                                                                                                                                 <div className="absolute bottom-full mb-3 hidden group-hover:block bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-lg whitespace-nowrap z-10 max-h-60 overflow-y-auto">
                                                                                                                                                                                                                                                                     <div className="font-semibold mb-2">{row.date}</div>
-                                                                                                                                                                                                                                                                    {row.products.filter(p => p.revenue > 0).map(p => (
+                                                                                                                                                                                                                                                                    {row.products.filter(p => getValue(p) > 0).map(p => (
                                                                                                                                                                                                                                                                                         <div key={p.productId} className="flex items-center gap-2 mb-1">
                                                                                                                                                                                                                                                                                                             <div className="w-2 h-2 rounded" style={{ backgroundColor: getProductColor(p.productId) }} />
-                                                                                                                                                                                                                                                                                                            <span>{p.productName}: {p.revenue.toLocaleString("vi-VN")} đ</span>
+                                                                                                                                                                                                                                                                                                            <span>
+                                                                                                                                                                                                                                                                                                                                {p.productName}: {metric === "revenue"
+                                                                                                                                                                                                                                                                                                                                                    ? `${p.revenue.toLocaleString("vi-VN")} đ`
+                                                                                                                                                                                                                                                                                                                                                    : `${p.quantity.toLocaleString("vi-VN")} sp`}
+                                                                                                                                                                                                                                                                                                            </span>
                                                                                                                                                                                                                                                                                         </div>
                                                                                                                                                                                                                                                                     ))}
                                                                                                                                                                                                                                                                     <div className="border-t border-gray-600 mt-2 pt-2 font-semibold">
-                                                                                                                                                                                                                                                                                        Tổng: {totalRevenue.toLocaleString("vi-VN")} đ
+                                                                                                                                                                                                                                                                                        Tổng: {metric === "revenue"
+                                                                                                                                                                                                                                                                                                            ? `${total.toLocaleString("vi-VN")} đ`
+                                                                                                                                                                                                                                                                                                            : `${total.toLocaleString("vi-VN")} sp`}
                                                                                                                                                                                                                                                                     </div>
                                                                                                                                                                                                                                                 </div>
 
@@ -347,8 +413,8 @@ export default function ReportsProductsPage() {
                                                                                                                                                                                                                                                                     className="absolute bottom-0 left-1/2 transform -translate-x-1/2 flex flex-col-reverse cursor-pointer"
                                                                                                                                                                                                                                                                     style={{ width: colWidth * 0.7, height: totalHeight }}
                                                                                                                                                                                                                                                 >
-                                                                                                                                                                                                                                                                    {row.products.filter(p => p.revenue > 0).map((p, pIdx) => {
-                                                                                                                                                                                                                                                                                        const segmentHeight = (p.revenue / totalRevenue) * totalHeight;
+                                                                                                                                                                                                                                                                    {row.products.filter(p => getValue(p) > 0).map((p, pIdx) => {
+                                                                                                                                                                                                                                                                                        const segmentHeight = (getValue(p) / total) * totalHeight;
                                                                                                                                                                                                                                                                                         return (
                                                                                                                                                                                                                                                                                                             <div
                                                                                                                                                                                                                                                                                                                                 key={p.productId}
@@ -356,7 +422,7 @@ export default function ReportsProductsPage() {
                                                                                                                                                                                                                                                                                                                                 style={{
                                                                                                                                                                                                                                                                                                                                                     height: segmentHeight,
                                                                                                                                                                                                                                                                                                                                                     backgroundColor: getProductColor(p.productId),
-                                                                                                                                                                                                                                                                                                                                                    borderRadius: pIdx === row.products.filter(pr => pr.revenue > 0).length - 1 ? '4px 4px 0 0' : '0',
+                                                                                                                                                                                                                                                                                                                                                    borderRadius: pIdx === row.products.filter(pr => getValue(pr) > 0).length - 1 ? '4px 4px 0 0' : '0',
                                                                                                                                                                                                                                                                                                                                 }}
                                                                                                                                                                                                                                                                                                             />
                                                                                                                                                                                                                                                                                         );
@@ -408,23 +474,28 @@ export default function ReportsProductsPage() {
                                                                                                                                             <tr><td colSpan={legend.length + 2} className="p-8 text-center text-gray-500">Chưa có dữ liệu</td></tr>
                                                                                                                         ) : (
                                                                                                                                             data.slice(0, 31).map((row) => {
-                                                                                                                                                                const total = row.products.reduce((sum, p) => sum + p.revenue, 0);
+                                                                                                                                                                const total = row.products.reduce((sum, p) => sum + getValue(p), 0);
                                                                                                                                                                 return (
                                                                                                                                                                                     <tr key={row.date}>
                                                                                                                                                                                                         <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{row.date}</td>
                                                                                                                                                                                                         {legend.map(item => {
                                                                                                                                                                                                                             const product = row.products.find(p => p.productId === item.productId);
+                                                                                                                                                                                                                            const value = product ? getValue(product) : 0;
                                                                                                                                                                                                                             return (
                                                                                                                                                                                                                                                 <td key={item.productId} className="px-4 py-4 whitespace-nowrap text-right text-sm">
-                                                                                                                                                                                                                                                                    {product && product.revenue > 0
-                                                                                                                                                                                                                                                                                        ? <span className="text-gray-700">{product.revenue.toLocaleString("vi-VN")}</span>
+                                                                                                                                                                                                                                                                    {value > 0
+                                                                                                                                                                                                                                                                                        ? <span className="text-gray-700">{value.toLocaleString("vi-VN")}</span>
                                                                                                                                                                                                                                                                                         : <span className="text-gray-300">-</span>
                                                                                                                                                                                                                                                                     }
                                                                                                                                                                                                                                                 </td>
                                                                                                                                                                                                                             );
                                                                                                                                                                                                         })}
                                                                                                                                                                                                         <td className="px-6 py-4 whitespace-nowrap text-right font-bold text-green-600">
-                                                                                                                                                                                                                            {total > 0 ? `${total.toLocaleString("vi-VN")} đ` : '-'}
+                                                                                                                                                                                                                            {total > 0
+                                                                                                                                                                                                                                                ? metric === "revenue"
+                                                                                                                                                                                                                                                                    ? `${total.toLocaleString("vi-VN")} đ`
+                                                                                                                                                                                                                                                                    : total.toLocaleString("vi-VN")
+                                                                                                                                                                                                                                                : '-'}
                                                                                                                                                                                                         </td>
                                                                                                                                                                                     </tr>
                                                                                                                                                                 );

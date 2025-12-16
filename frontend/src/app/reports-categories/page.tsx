@@ -7,6 +7,7 @@ interface CategoryRevenue {
                     categoryId: number;
                     categoryName: string;
                     revenue: number;
+                    quantity: number;
 }
 
 interface ReportData {
@@ -30,6 +31,7 @@ export default function ReportsCategoriesPage() {
                     const [data, setData] = useState<ReportData[]>([]);
                     const [legend, setLegend] = useState<LegendItem[]>([]);
                     const [interval, setInterval] = useState<"day" | "month" | "year">("day");
+                    const [metric, setMetric] = useState<"revenue" | "quantity">("revenue");
                     const [loading, setLoading] = useState(false);
 
                     // Filter states for Day mode (default to today only)
@@ -81,10 +83,28 @@ export default function ReportsCategoriesPage() {
                     const totalRevenue = data.reduce((sum, d) =>
                                         sum + d.categories.reduce((cSum, c) => cSum + c.revenue, 0), 0
                     );
+                    const totalQuantity = data.reduce((sum, d) =>
+                                        sum + d.categories.reduce((cSum, c) => cSum + c.quantity, 0), 0
+                    );
 
-                    const formatCurrency = (value: number) => {
-                                        if (value >= 1000000) return `${(value / 1000000).toFixed(1)}Tr`;
-                                        if (value >= 1000) return `${(value / 1000).toFixed(0)}N`;
+                    // Calculate totals per category
+                    const categoryTotals: Record<number, { revenue: number; quantity: number }> = {};
+                    data.forEach(d => {
+                                        d.categories.forEach(c => {
+                                                            if (!categoryTotals[c.categoryId]) {
+                                                                                categoryTotals[c.categoryId] = { revenue: 0, quantity: 0 };
+                                                            }
+                                                            categoryTotals[c.categoryId].revenue += c.revenue;
+                                                            categoryTotals[c.categoryId].quantity += c.quantity;
+                                        });
+                    });
+
+                    const formatValue = (value: number) => {
+                                        if (metric === "revenue") {
+                                                            if (value >= 1000000) return `${(value / 1000000).toFixed(1)}Tr`;
+                                                            if (value >= 1000) return `${(value / 1000).toFixed(0)}N`;
+                                                            return value.toLocaleString("vi-VN");
+                                        }
                                         return value.toLocaleString("vi-VN");
                     };
 
@@ -92,6 +112,8 @@ export default function ReportsCategoriesPage() {
                                         const index = legend.findIndex(l => l.categoryId === categoryId);
                                         return COLORS[index % COLORS.length];
                     };
+
+                    const getValue = (c: CategoryRevenue) => metric === "revenue" ? c.revenue : c.quantity;
 
                     return (
                                         <div className="p-6">
@@ -101,10 +123,14 @@ export default function ReportsCategoriesPage() {
                                                             </h1>
 
                                                             {/* Summary Cards */}
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                                                                 <div className="bg-white p-6 rounded-lg shadow">
                                                                                                     <p className="text-gray-500 text-sm">Tổng doanh thu</p>
                                                                                                     <p className="text-3xl font-bold text-emerald-600">{totalRevenue.toLocaleString("vi-VN")} đ</p>
+                                                                                </div>
+                                                                                <div className="bg-white p-6 rounded-lg shadow">
+                                                                                                    <p className="text-gray-500 text-sm">Tổng số lượng</p>
+                                                                                                    <p className="text-3xl font-bold text-purple-600">{totalQuantity.toLocaleString("vi-VN")}</p>
                                                                                 </div>
                                                                                 <div className="bg-white p-6 rounded-lg shadow">
                                                                                                     <p className="text-gray-500 text-sm">Số danh mục có doanh thu</p>
@@ -115,6 +141,21 @@ export default function ReportsCategoriesPage() {
                                                             {/* Filters */}
                                                             <div className="bg-white rounded-lg shadow p-4 mb-6">
                                                                                 <div className="flex flex-wrap items-center gap-4">
+                                                                                                    {/* Metric Selector */}
+                                                                                                    <div className="flex items-center gap-2">
+                                                                                                                        <label className="text-sm text-gray-600">Hiển thị:</label>
+                                                                                                                        <select
+                                                                                                                                            value={metric}
+                                                                                                                                            onChange={(e) => setMetric(e.target.value as "revenue" | "quantity")}
+                                                                                                                                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-medium"
+                                                                                                                        >
+                                                                                                                                            <option value="revenue">Doanh thu</option>
+                                                                                                                                            <option value="quantity">Số lượng</option>
+                                                                                                                        </select>
+                                                                                                    </div>
+
+                                                                                                    <div className="w-px h-8 bg-gray-200" />
+
                                                                                                     {/* Interval Selector */}
                                                                                                     <div className="flex rounded-lg overflow-hidden border border-gray-200">
                                                                                                                         {(["day", "month", "year"] as const).map((intv) => (
@@ -238,20 +279,39 @@ export default function ReportsCategoriesPage() {
                                                                                 </div>
                                                             </div>
 
-                                                            {/* Legend */}
+                                                            {/* Legend - Scrollable with totals */}
                                                             {legend.length > 0 && (
                                                                                 <div className="bg-white rounded-lg shadow p-4 mb-6">
-                                                                                                    <h3 className="text-sm font-medium text-gray-600 mb-3">Chú thích danh mục</h3>
-                                                                                                    <div className="flex flex-wrap gap-4">
-                                                                                                                        {legend.map((item) => (
-                                                                                                                                            <div key={item.categoryId} className="flex items-center gap-2">
-                                                                                                                                                                <div
-                                                                                                                                                                                    className="w-4 h-4 rounded"
-                                                                                                                                                                                    style={{ backgroundColor: getCategoryColor(item.categoryId) }}
-                                                                                                                                                                />
-                                                                                                                                                                <span className="text-sm text-gray-700">{item.categoryName}</span>
-                                                                                                                                            </div>
-                                                                                                                        ))}
+                                                                                                    <h3 className="text-sm font-medium text-gray-600 mb-3">
+                                                                                                                        Chú thích danh mục ({legend.length} danh mục)
+                                                                                                    </h3>
+                                                                                                    <div className="max-h-48 overflow-y-auto border border-gray-100 rounded-lg">
+                                                                                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1 p-2">
+                                                                                                                                            {legend.map((item) => {
+                                                                                                                                                                const totals = categoryTotals[item.categoryId] || { revenue: 0, quantity: 0 };
+                                                                                                                                                                const displayValue = metric === "revenue"
+                                                                                                                                                                                    ? `${totals.revenue.toLocaleString("vi-VN")} đ`
+                                                                                                                                                                                    : `${totals.quantity.toLocaleString("vi-VN")} sp`;
+
+                                                                                                                                                                return (
+                                                                                                                                                                                    <div
+                                                                                                                                                                                                        key={item.categoryId}
+                                                                                                                                                                                                        className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition border border-gray-100"
+                                                                                                                                                                                    >
+                                                                                                                                                                                                        <div
+                                                                                                                                                                                                                            className="w-3 h-3 rounded flex-shrink-0"
+                                                                                                                                                                                                                            style={{ backgroundColor: getCategoryColor(item.categoryId) }}
+                                                                                                                                                                                                        />
+                                                                                                                                                                                                        <div className="flex-1 min-w-0">
+                                                                                                                                                                                                                            <div className="text-sm text-gray-700 truncate" title={item.categoryName}>
+                                                                                                                                                                                                                                                {item.categoryName}
+                                                                                                                                                                                                                            </div>
+                                                                                                                                                                                                                            <div className="text-xs text-gray-500 font-medium">{displayValue}</div>
+                                                                                                                                                                                                        </div>
+                                                                                                                                                                                    </div>
+                                                                                                                                                                );
+                                                                                                                                            })}
+                                                                                                                        </div>
                                                                                                     </div>
                                                                                 </div>
                                                             )}
@@ -260,7 +320,7 @@ export default function ReportsCategoriesPage() {
                                                             <div className="bg-white rounded-lg shadow p-6 mb-8">
                                                                                 <div className="flex justify-between items-center mb-6">
                                                                                                     <h2 className="text-xl font-bold text-gray-800">
-                                                                                                                        Biểu đồ doanh thu theo {interval === 'day' ? 'ngày' : interval === 'month' ? 'tháng' : 'năm'}
+                                                                                                                        Biểu đồ {metric === "revenue" ? "doanh thu" : "số lượng"} theo {interval === 'day' ? 'ngày' : interval === 'month' ? 'tháng' : 'năm'}
                                                                                                     </h2>
                                                                                                     <div className="text-sm text-gray-500">
                                                                                                                         {data.length > 0 && `${data.length} ${interval === 'day' ? 'ngày' : interval === 'month' ? 'tháng' : 'năm'}`}
@@ -285,9 +345,9 @@ export default function ReportsCategoriesPage() {
                                                                                                                         chartData = data.slice(0, 31);
                                                                                                     }
 
-                                                                                                    // Calculate max total revenue for scaling
+                                                                                                    // Calculate max total for scaling
                                                                                                     const maxTotal = Math.max(...chartData.map(d =>
-                                                                                                                        d.categories.reduce((sum, c) => sum + c.revenue, 0)
+                                                                                                                        d.categories.reduce((sum, c) => sum + getValue(c), 0)
                                                                                                     )) || 1;
 
                                                                                                     const chartHeight = 256;
@@ -311,8 +371,8 @@ export default function ReportsCategoriesPage() {
                                                                                                                                                                                     style={{ height: chartHeight + 40, gap: `${gap}px` }}
                                                                                                                                                                 >
                                                                                                                                                                                     {chartData.map((row, idx) => {
-                                                                                                                                                                                                        const totalRevenue = row.categories.reduce((sum, c) => sum + c.revenue, 0);
-                                                                                                                                                                                                        const totalHeight = (totalRevenue / maxTotal) * chartHeight;
+                                                                                                                                                                                                        const total = row.categories.reduce((sum, c) => sum + getValue(c), 0);
+                                                                                                                                                                                                        const totalHeight = (total / maxTotal) * chartHeight;
 
                                                                                                                                                                                                         return (
                                                                                                                                                                                                                             <div
@@ -325,20 +385,26 @@ export default function ReportsCategoriesPage() {
                                                                                                                                                                                                                                                                     className="absolute left-1/2 transform -translate-x-1/2 text-gray-700 font-semibold whitespace-nowrap"
                                                                                                                                                                                                                                                                     style={{ bottom: totalHeight + 4, fontSize: itemCount <= 14 ? '10px' : '9px' }}
                                                                                                                                                                                                                                                 >
-                                                                                                                                                                                                                                                                    {totalRevenue > 0 ? formatCurrency(totalRevenue) : ''}
+                                                                                                                                                                                                                                                                    {total > 0 ? formatValue(total) : ''}
                                                                                                                                                                                                                                                 </div>
 
                                                                                                                                                                                                                                                 {/* Tooltip */}
                                                                                                                                                                                                                                                 <div className="absolute bottom-full mb-3 hidden group-hover:block bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-lg whitespace-nowrap z-10">
                                                                                                                                                                                                                                                                     <div className="font-semibold mb-2">{row.date}</div>
-                                                                                                                                                                                                                                                                    {row.categories.filter(c => c.revenue > 0).map(c => (
+                                                                                                                                                                                                                                                                    {row.categories.filter(c => getValue(c) > 0).map(c => (
                                                                                                                                                                                                                                                                                         <div key={c.categoryId} className="flex items-center gap-2 mb-1">
                                                                                                                                                                                                                                                                                                             <div className="w-2 h-2 rounded" style={{ backgroundColor: getCategoryColor(c.categoryId) }} />
-                                                                                                                                                                                                                                                                                                            <span>{c.categoryName}: {c.revenue.toLocaleString("vi-VN")} đ</span>
+                                                                                                                                                                                                                                                                                                            <span>
+                                                                                                                                                                                                                                                                                                                                {c.categoryName}: {metric === "revenue"
+                                                                                                                                                                                                                                                                                                                                                    ? `${c.revenue.toLocaleString("vi-VN")} đ`
+                                                                                                                                                                                                                                                                                                                                                    : `${c.quantity.toLocaleString("vi-VN")} sp`}
+                                                                                                                                                                                                                                                                                                            </span>
                                                                                                                                                                                                                                                                                         </div>
                                                                                                                                                                                                                                                                     ))}
                                                                                                                                                                                                                                                                     <div className="border-t border-gray-600 mt-2 pt-2 font-semibold">
-                                                                                                                                                                                                                                                                                        Tổng: {totalRevenue.toLocaleString("vi-VN")} đ
+                                                                                                                                                                                                                                                                                        Tổng: {metric === "revenue"
+                                                                                                                                                                                                                                                                                                            ? `${total.toLocaleString("vi-VN")} đ`
+                                                                                                                                                                                                                                                                                                            : `${total.toLocaleString("vi-VN")} sp`}
                                                                                                                                                                                                                                                                     </div>
                                                                                                                                                                                                                                                 </div>
 
@@ -347,8 +413,8 @@ export default function ReportsCategoriesPage() {
                                                                                                                                                                                                                                                                     className="absolute bottom-0 left-1/2 transform -translate-x-1/2 flex flex-col-reverse cursor-pointer"
                                                                                                                                                                                                                                                                     style={{ width: colWidth * 0.7, height: totalHeight }}
                                                                                                                                                                                                                                                 >
-                                                                                                                                                                                                                                                                    {row.categories.filter(c => c.revenue > 0).map((c, cIdx) => {
-                                                                                                                                                                                                                                                                                        const segmentHeight = (c.revenue / totalRevenue) * totalHeight;
+                                                                                                                                                                                                                                                                    {row.categories.filter(c => getValue(c) > 0).map((c, cIdx) => {
+                                                                                                                                                                                                                                                                                        const segmentHeight = (getValue(c) / total) * totalHeight;
                                                                                                                                                                                                                                                                                         return (
                                                                                                                                                                                                                                                                                                             <div
                                                                                                                                                                                                                                                                                                                                 key={c.categoryId}
@@ -356,7 +422,7 @@ export default function ReportsCategoriesPage() {
                                                                                                                                                                                                                                                                                                                                 style={{
                                                                                                                                                                                                                                                                                                                                                     height: segmentHeight,
                                                                                                                                                                                                                                                                                                                                                     backgroundColor: getCategoryColor(c.categoryId),
-                                                                                                                                                                                                                                                                                                                                                    borderRadius: cIdx === row.categories.filter(cat => cat.revenue > 0).length - 1 ? '4px 4px 0 0' : '0',
+                                                                                                                                                                                                                                                                                                                                                    borderRadius: cIdx === row.categories.filter(cat => getValue(cat) > 0).length - 1 ? '4px 4px 0 0' : '0',
                                                                                                                                                                                                                                                                                                                                 }}
                                                                                                                                                                                                                                                                                                             />
                                                                                                                                                                                                                                                                                         );
@@ -408,23 +474,28 @@ export default function ReportsCategoriesPage() {
                                                                                                                                             <tr><td colSpan={legend.length + 2} className="p-8 text-center text-gray-500">Chưa có dữ liệu</td></tr>
                                                                                                                         ) : (
                                                                                                                                             data.slice(0, 31).map((row) => {
-                                                                                                                                                                const total = row.categories.reduce((sum, c) => sum + c.revenue, 0);
+                                                                                                                                                                const total = row.categories.reduce((sum, c) => sum + getValue(c), 0);
                                                                                                                                                                 return (
                                                                                                                                                                                     <tr key={row.date}>
                                                                                                                                                                                                         <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{row.date}</td>
                                                                                                                                                                                                         {legend.map(item => {
                                                                                                                                                                                                                             const category = row.categories.find(c => c.categoryId === item.categoryId);
+                                                                                                                                                                                                                            const value = category ? getValue(category) : 0;
                                                                                                                                                                                                                             return (
                                                                                                                                                                                                                                                 <td key={item.categoryId} className="px-4 py-4 whitespace-nowrap text-right text-sm">
-                                                                                                                                                                                                                                                                    {category && category.revenue > 0
-                                                                                                                                                                                                                                                                                        ? <span className="text-gray-700">{category.revenue.toLocaleString("vi-VN")}</span>
+                                                                                                                                                                                                                                                                    {value > 0
+                                                                                                                                                                                                                                                                                        ? <span className="text-gray-700">{value.toLocaleString("vi-VN")}</span>
                                                                                                                                                                                                                                                                                         : <span className="text-gray-300">-</span>
                                                                                                                                                                                                                                                                     }
                                                                                                                                                                                                                                                 </td>
                                                                                                                                                                                                                             );
                                                                                                                                                                                                         })}
                                                                                                                                                                                                         <td className="px-6 py-4 whitespace-nowrap text-right font-bold text-green-600">
-                                                                                                                                                                                                                            {total > 0 ? `${total.toLocaleString("vi-VN")} đ` : '-'}
+                                                                                                                                                                                                                            {total > 0
+                                                                                                                                                                                                                                                ? metric === "revenue"
+                                                                                                                                                                                                                                                                    ? `${total.toLocaleString("vi-VN")} đ`
+                                                                                                                                                                                                                                                                    : total.toLocaleString("vi-VN")
+                                                                                                                                                                                                                                                : '-'}
                                                                                                                                                                                                         </td>
                                                                                                                                                                                     </tr>
                                                                                                                                                                 );

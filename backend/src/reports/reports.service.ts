@@ -115,8 +115,9 @@ export class ReportsService {
       orderBy: { id: 'asc' },
     });
 
-    // Aggregate data by date and product
-    const dataMap: Record<string, Record<number, number>> = {};
+    // Aggregate data by date and product - track both revenue and quantity
+    const revenueMap: Record<string, Record<number, number>> = {};
+    const quantityMap: Record<string, Record<number, number>> = {};
 
     for (const inv of invoices) {
       const date = new Date(inv.createdAt);
@@ -130,36 +131,39 @@ export class ReportsService {
         key = `${date.getFullYear()}`;
       }
 
-      if (!dataMap[key]) {
-        dataMap[key] = {};
+      if (!revenueMap[key]) {
+        revenueMap[key] = {};
+        quantityMap[key] = {};
       }
 
       for (const item of inv.order.items) {
         const productId = item.productId;
         const revenue = item.quantity * item.product.price;
-        dataMap[key][productId] = (dataMap[key][productId] || 0) + revenue;
+        revenueMap[key][productId] = (revenueMap[key][productId] || 0) + revenue;
+        quantityMap[key][productId] = (quantityMap[key][productId] || 0) + item.quantity;
       }
     }
 
     // Build result with all dates filled in
-    const result: { date: string, products: { productId: number, productName: string, revenue: number }[] }[] = [];
+    const result: { date: string, products: { productId: number, productName: string, revenue: number, quantity: number }[] }[] = [];
     const dateKeys = this.generateDateKeys(startDate, endDate, interval);
 
     for (const key of dateKeys) {
       const products = allProducts.map(p => ({
         productId: p.id,
         productName: p.name,
-        revenue: dataMap[key]?.[p.id] || 0,
-      })).filter(p => p.revenue > 0 || dateKeys.some(dk => dataMap[dk]?.[p.productId] > 0));
+        revenue: revenueMap[key]?.[p.id] || 0,
+        quantity: quantityMap[key]?.[p.id] || 0,
+      })).filter(p => p.revenue > 0 || p.quantity > 0 || dateKeys.some(dk => revenueMap[dk]?.[p.productId] > 0));
 
       result.push({ date: key, products });
     }
 
-    // Get unique products that have any revenue
+    // Get unique products that have any data
     const activeProductIds = new Set<number>();
     for (const key of dateKeys) {
-      if (dataMap[key]) {
-        Object.keys(dataMap[key]).forEach(id => activeProductIds.add(Number(id)));
+      if (revenueMap[key]) {
+        Object.keys(revenueMap[key]).forEach(id => activeProductIds.add(Number(id)));
       }
     }
 
@@ -205,8 +209,9 @@ export class ReportsService {
       orderBy: { id: 'asc' },
     });
 
-    // Aggregate data by date and category
-    const dataMap: Record<string, Record<number, number>> = {};
+    // Aggregate data by date and category - track both revenue and quantity
+    const revenueMap: Record<string, Record<number, number>> = {};
+    const quantityMap: Record<string, Record<number, number>> = {};
 
     for (const inv of invoices) {
       const date = new Date(inv.createdAt);
@@ -220,36 +225,39 @@ export class ReportsService {
         key = `${date.getFullYear()}`;
       }
 
-      if (!dataMap[key]) {
-        dataMap[key] = {};
+      if (!revenueMap[key]) {
+        revenueMap[key] = {};
+        quantityMap[key] = {};
       }
 
       for (const item of inv.order.items) {
         const categoryId = item.product.categoryId;
         const revenue = item.quantity * item.product.price;
-        dataMap[key][categoryId] = (dataMap[key][categoryId] || 0) + revenue;
+        revenueMap[key][categoryId] = (revenueMap[key][categoryId] || 0) + revenue;
+        quantityMap[key][categoryId] = (quantityMap[key][categoryId] || 0) + item.quantity;
       }
     }
 
     // Build result with all dates filled in
-    const result: { date: string, categories: { categoryId: number, categoryName: string, revenue: number }[] }[] = [];
+    const result: { date: string, categories: { categoryId: number, categoryName: string, revenue: number, quantity: number }[] }[] = [];
     const dateKeys = this.generateDateKeys(startDate, endDate, interval);
 
     for (const key of dateKeys) {
       const categories = allCategories.map(c => ({
         categoryId: c.id,
         categoryName: c.name,
-        revenue: dataMap[key]?.[c.id] || 0,
+        revenue: revenueMap[key]?.[c.id] || 0,
+        quantity: quantityMap[key]?.[c.id] || 0,
       }));
 
       result.push({ date: key, categories });
     }
 
-    // Get unique categories that have any revenue
+    // Get unique categories that have any data
     const activeCategoryIds = new Set<number>();
     for (const key of dateKeys) {
-      if (dataMap[key]) {
-        Object.keys(dataMap[key]).forEach(id => activeCategoryIds.add(Number(id)));
+      if (revenueMap[key]) {
+        Object.keys(revenueMap[key]).forEach(id => activeCategoryIds.add(Number(id)));
       }
     }
 

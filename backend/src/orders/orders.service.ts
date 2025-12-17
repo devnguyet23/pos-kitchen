@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { EventsGateway } from '../events/events.gateway';
+import { CurrentUserData } from '../auth/decorators/current-user.decorator';
 
 @Injectable()
 export class OrdersService {
@@ -10,7 +11,7 @@ export class OrdersService {
                                         private eventsGateway: EventsGateway,
                     ) { }
 
-                    async create(createOrderDto: CreateOrderDto) {
+                    async create(createOrderDto: CreateOrderDto, user?: CurrentUserData) {
                                         const { tableId, items } = createOrderDto;
 
                                         // Calculate total
@@ -30,6 +31,8 @@ export class OrdersService {
                                                                                 tableId,
                                                                                 total,
                                                                                 status: 'PENDING',
+                                                                                ...(user?.storeId && { storeId: user.storeId }),
+                                                                                ...(user?.id && { userId: user.id }),
                                                                                 items: {
                                                                                                     create: items.map((item) => ({
                                                                                                                         productId: item.productId,
@@ -62,8 +65,18 @@ export class OrdersService {
                                         return order;
                     }
 
-                    findAll() {
+                    findAll(user?: CurrentUserData) {
+                                        const where: any = {};
+
+                                        // Scope filter: by store or by chain
+                                        if (user?.storeId) {
+                                                            where.storeId = user.storeId;
+                                        } else if (user?.chainId) {
+                                                            where.store = { chainId: user.chainId };
+                                        }
+
                                         return this.prisma.order.findMany({
+                                                            where,
                                                             include: {
                                                                                 items: {
                                                                                                     include: {

@@ -2,6 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { EventsGateway } from '../events/events.gateway';
+import { CurrentUserData } from '../auth/decorators/current-user.decorator';
 
 @Injectable()
 export class InvoicesService {
@@ -10,7 +11,7 @@ export class InvoicesService {
     private eventsGateway: EventsGateway,
   ) { }
 
-  async create(createInvoiceDto: CreateInvoiceDto) {
+  async create(createInvoiceDto: CreateInvoiceDto, user?: CurrentUserData) {
     const { tableId, orderId, paymentMethod } = createInvoiceDto;
 
     let orders = [];
@@ -66,6 +67,7 @@ export class InvoicesService {
         tax,
         total,
         paymentMethod: paymentMethod || 'CASH',
+        ...(user?.storeId && { storeId: user.storeId }),
       },
     });
 
@@ -87,8 +89,15 @@ export class InvoicesService {
     return invoice;
   }
 
-  async findAll(from?: string, to?: string) {
+  async findAll(from?: string, to?: string, user?: CurrentUserData) {
     const where: any = {};
+
+    // Scope filter
+    if (user?.storeId) {
+      where.storeId = user.storeId;
+    } else if (user?.chainId) {
+      where.store = { chainId: user.chainId };
+    }
 
     if (from || to) {
       where.createdAt = {};

@@ -30,18 +30,18 @@ import { useAuth } from "@/contexts/AuthContext";
 // Main menu items (without reports submenu)
 const menuItems = [
                     { href: "/", label: "Dashboard", icon: Home },
-                    { href: "/retail", label: "Retail POS", icon: ShoppingCart },
-                    { href: "/products", label: "Sản phẩm", icon: Package },
-                    { href: "/categories", label: "Danh mục", icon: FolderOpen },
-                    { href: "/modifiers", label: "Modifiers", icon: Sliders },
-                    { href: "/invoices", label: "Hoá đơn", icon: FileText },
+                    { href: "/retail", label: "Retail POS", icon: ShoppingCart, permission: "create_order" },
+                    { href: "/products", label: "Sản phẩm", icon: Package, permission: "view_products" },
+                    { href: "/categories", label: "Danh mục", icon: FolderOpen, permission: "view_products" },
+                    { href: "/modifiers", label: "Modifiers", icon: Sliders, permission: "view_products" },
+                    { href: "/invoices", label: "Hoá đơn", icon: FileText, permission: "view_orders" },
 ];
 
 // Reports submenu items
 const reportSubItems = [
-                    { href: "/reports", label: "Tổng quan", icon: TrendingUp },
-                    { href: "/reports-products", label: "Theo sản phẩm", icon: BarChart3 },
-                    { href: "/reports-categories", label: "Theo danh mục", icon: PieChart },
+                    { href: "/reports", label: "Tổng quan", icon: TrendingUp, permission: "view_revenue_reports" },
+                    { href: "/reports-products", label: "Theo sản phẩm", icon: BarChart3, permission: "view_revenue_reports" },
+                    { href: "/reports-categories", label: "Theo danh mục", icon: PieChart, permission: "view_revenue_reports" },
 ];
 
 // Admin menu items
@@ -66,6 +66,18 @@ export default function Sidebar() {
                     // Filter admin items based on permissions
                     const visibleAdminItems = adminMenuItems.filter(item => {
                                         if (item.roles) return hasAnyRole(...item.roles);
+                                        if (item.permission) return hasPermission(item.permission);
+                                        return true;
+                    });
+
+                    // Filter main menu items based on permissions
+                    const visibleMenuItems = menuItems.filter(item => {
+                                        if ('permission' in item && item.permission) return hasPermission(item.permission);
+                                        return true;
+                    });
+
+                    // Filter report items based on permissions
+                    const visibleReportItems = reportSubItems.filter(item => {
                                         if (item.permission) return hasPermission(item.permission);
                                         return true;
                     });
@@ -102,7 +114,7 @@ export default function Sidebar() {
                                                                                 {/* Menu Items */}
                                                                                 <nav className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
                                                                                                     <ul className="space-y-2">
-                                                                                                                        {menuItems.map((item) => {
+                                                                                                                        {visibleMenuItems.map((item) => {
                                                                                                                                             const Icon = item.icon;
                                                                                                                                             const isActive = pathname === item.href;
 
@@ -123,53 +135,55 @@ export default function Sidebar() {
                                                                                                                                             );
                                                                                                                         })}
 
-                                                                                                                        {/* Reports Menu with Submenu */}
-                                                                                                                        <li>
-                                                                                                                                            <button
-                                                                                                                                                                onClick={() => setReportsExpanded(!reportsExpanded)}
-                                                                                                                                                                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition ${isReportsPage
-                                                                                                                                                                                    ? "bg-blue-600 text-white"
-                                                                                                                                                                                    : "text-gray-700 hover:bg-gray-100"
-                                                                                                                                                                                    }`}
-                                                                                                                                            >
-                                                                                                                                                                <div className="flex items-center gap-3">
-                                                                                                                                                                                    <BarChart3 size={20} />
-                                                                                                                                                                                    <span className="font-medium">Báo cáo</span>
-                                                                                                                                                                </div>
-                                                                                                                                                                {reportsExpanded ? (
-                                                                                                                                                                                    <ChevronDown size={18} />
-                                                                                                                                                                ) : (
-                                                                                                                                                                                    <ChevronRight size={18} />
-                                                                                                                                                                )}
-                                                                                                                                            </button>
+                                                                                                                        {/* Reports Menu with Submenu - only show if user has report permissions */}
+                                                                                                                        {visibleReportItems.length > 0 && (
+                                                                                                                                            <li>
+                                                                                                                                                                <button
+                                                                                                                                                                                    onClick={() => setReportsExpanded(!reportsExpanded)}
+                                                                                                                                                                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition ${isReportsPage
+                                                                                                                                                                                                        ? "bg-blue-600 text-white"
+                                                                                                                                                                                                        : "text-gray-700 hover:bg-gray-100"
+                                                                                                                                                                                                        }`}
+                                                                                                                                                                >
+                                                                                                                                                                                    <div className="flex items-center gap-3">
+                                                                                                                                                                                                        <BarChart3 size={20} />
+                                                                                                                                                                                                        <span className="font-medium">Báo cáo</span>
+                                                                                                                                                                                    </div>
+                                                                                                                                                                                    {reportsExpanded ? (
+                                                                                                                                                                                                        <ChevronDown size={18} />
+                                                                                                                                                                                    ) : (
+                                                                                                                                                                                                        <ChevronRight size={18} />
+                                                                                                                                                                                    )}
+                                                                                                                                                                </button>
 
-                                                                                                                                            {/* Submenu */}
-                                                                                                                                            <ul
-                                                                                                                                                                className={`mt-1 ml-4 space-y-1 overflow-hidden transition-all duration-300 ${reportsExpanded ? "max-h-40 opacity-100" : "max-h-0 opacity-0"
-                                                                                                                                                                                    }`}
-                                                                                                                                            >
-                                                                                                                                                                {reportSubItems.map((subItem) => {
-                                                                                                                                                                                    const SubIcon = subItem.icon;
-                                                                                                                                                                                    const isSubActive = pathname === subItem.href;
+                                                                                                                                                                {/* Submenu */}
+                                                                                                                                                                <ul
+                                                                                                                                                                                    className={`mt-1 ml-4 space-y-1 overflow-hidden transition-all duration-300 ${reportsExpanded ? "max-h-40 opacity-100" : "max-h-0 opacity-0"
+                                                                                                                                                                                                        }`}
+                                                                                                                                                                >
+                                                                                                                                                                                    {visibleReportItems.map((subItem) => {
+                                                                                                                                                                                                        const SubIcon = subItem.icon;
+                                                                                                                                                                                                        const isSubActive = pathname === subItem.href;
 
-                                                                                                                                                                                    return (
-                                                                                                                                                                                                        <li key={subItem.href}>
-                                                                                                                                                                                                                            <Link
-                                                                                                                                                                                                                                                href={subItem.href}
-                                                                                                                                                                                                                                                onClick={() => setIsOpen(false)}
-                                                                                                                                                                                                                                                className={`flex items-center gap-3 px-4 py-2 rounded-lg transition text-sm ${isSubActive
-                                                                                                                                                                                                                                                                    ? "bg-blue-100 text-blue-700 font-medium"
-                                                                                                                                                                                                                                                                    : "text-gray-600 hover:bg-gray-100"
-                                                                                                                                                                                                                                                                    }`}
-                                                                                                                                                                                                                            >
-                                                                                                                                                                                                                                                <SubIcon size={16} />
-                                                                                                                                                                                                                                                <span>{subItem.label}</span>
-                                                                                                                                                                                                                            </Link>
-                                                                                                                                                                                                        </li>
-                                                                                                                                                                                    );
-                                                                                                                                                                })}
-                                                                                                                                            </ul>
-                                                                                                                        </li>
+                                                                                                                                                                                                        return (
+                                                                                                                                                                                                                            <li key={subItem.href}>
+                                                                                                                                                                                                                                                <Link
+                                                                                                                                                                                                                                                                    href={subItem.href}
+                                                                                                                                                                                                                                                                    onClick={() => setIsOpen(false)}
+                                                                                                                                                                                                                                                                    className={`flex items-center gap-3 px-4 py-2 rounded-lg transition text-sm ${isSubActive
+                                                                                                                                                                                                                                                                                        ? "bg-blue-100 text-blue-700 font-medium"
+                                                                                                                                                                                                                                                                                        : "text-gray-600 hover:bg-gray-100"
+                                                                                                                                                                                                                                                                                        }`}
+                                                                                                                                                                                                                                                >
+                                                                                                                                                                                                                                                                    <SubIcon size={16} />
+                                                                                                                                                                                                                                                                    <span>{subItem.label}</span>
+                                                                                                                                                                                                                                                </Link>
+                                                                                                                                                                                                                            </li>
+                                                                                                                                                                                                        );
+                                                                                                                                                                                    })}
+                                                                                                                                                                </ul>
+                                                                                                                                            </li>
+                                                                                                                        )}
 
                                                                                                                         {/* Admin Menu */}
                                                                                                                         {visibleAdminItems.length > 0 && (

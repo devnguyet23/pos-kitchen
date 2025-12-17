@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
+import { CurrentUserData } from '../auth/decorators/current-user.decorator';
 
 @Injectable()
 export class ProductsService {
                     constructor(private prisma: PrismaService) { }
 
-                    async create(createProductDto: CreateProductDto) {
+                    async create(createProductDto: CreateProductDto, user?: CurrentUserData) {
                                         const { modifierIds, ...data } = createProductDto;
 
                                         const product = await this.prisma.product.create({
@@ -16,6 +17,7 @@ export class ProductsService {
                                                                                 image: data.image,
                                                                                 status: data.status ?? 1,
                                                                                 category: { connect: { id: data.categoryId } },
+                                                                                ...(user?.chainId && { chain: { connect: { id: user.chainId } } }),
                                                                                 ...(modifierIds && modifierIds.length > 0 && {
                                                                                                     modifiers: {
                                                                                                                         create: modifierIds.map(modifierId => ({
@@ -54,7 +56,7 @@ export class ProductsService {
                                         categoryId?: number;
                                         sortBy?: 'id' | 'name' | 'price';
                                         sortOrder?: 'asc' | 'desc';
-                    } = {}) {
+                    } = {}, user?: CurrentUserData) {
                                         const {
                                                             page = 1,
                                                             limit,
@@ -66,6 +68,11 @@ export class ProductsService {
 
                                         // Build where clause (without search - we'll filter in memory)
                                         const where: any = {};
+
+                                        // Scope filter: only show products from user's chain
+                                        if (user?.chainId) {
+                                                            where.chainId = user.chainId;
+                                        }
 
                                         if (categoryId) {
                                                             where.categoryId = categoryId;

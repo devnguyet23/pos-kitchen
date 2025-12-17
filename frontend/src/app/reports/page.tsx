@@ -50,10 +50,21 @@ export default function ReportsPage() {
       end = new Date(toYear, 11, 31, 23, 59, 59, 999);
     }
 
+    const token = localStorage.getItem('accessToken');
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     try {
-      const res = await fetch(`http://localhost:3001/reports/revenue?from=${start.toISOString()}&to=${end.toISOString()}&interval=${interval}`);
+      const res = await fetch(`http://localhost:3001/reports/revenue?from=${start.toISOString()}&to=${end.toISOString()}&interval=${interval}`, { headers });
+      if (!res.ok) {
+        setData([]);
+        setLoading(false);
+        return;
+      }
       const json = await res.json();
-      setData(json);
+      setData(Array.isArray(json) ? json : []);
     } catch (e) {
       console.error(e);
       setData([]);

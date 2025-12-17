@@ -1,19 +1,27 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateModifierDto, UpdateModifierDto } from './dto/modifier.dto';
+import { CurrentUserData } from '../auth/decorators/current-user.decorator';
 
 @Injectable()
 export class ModifiersService {
                     constructor(private prisma: PrismaService) { }
 
-                    async create(createModifierDto: CreateModifierDto) {
+                    async create(createModifierDto: CreateModifierDto, user?: CurrentUserData) {
                                         return this.prisma.modifier.create({
-                                                            data: createModifierDto,
+                                                            data: {
+                                                                                ...createModifierDto,
+                                                                                ...(user?.chainId && { chainId: user.chainId }),
+                                                            },
                                         });
                     }
 
-                    findAll() {
-                                        return this.prisma.modifier.findMany();
+                    findAll(user?: CurrentUserData) {
+                                        const where: any = {};
+                                        if (user?.chainId) {
+                                                            where.chainId = user.chainId;
+                                        }
+                                        return this.prisma.modifier.findMany({ where });
                     }
 
                     async findOne(id: number) {

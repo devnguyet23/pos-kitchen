@@ -104,6 +104,12 @@ export default function ProductsPage() {
                     // Fetch products with pagination
                     const fetchProducts = async () => {
                                         try {
+                                                            const token = localStorage.getItem('accessToken');
+                                                            const headers: Record<string, string> = {};
+                                                            if (token) {
+                                                                                headers["Authorization"] = `Bearer ${token}`;
+                                                            }
+
                                                             const params = new URLSearchParams();
                                                             params.append('page', currentPage.toString());
                                                             if (pageSize !== "all") {
@@ -118,35 +124,64 @@ export default function ProductsPage() {
                                                             params.append('sortBy', sortBy);
                                                             params.append('sortOrder', sortOrder);
 
-                                                            const res = await fetch(`${API_URL}/products?${params.toString()}`);
+                                                            const res = await fetch(`${API_URL}/products?${params.toString()}`, { headers });
+                                                            if (!res.ok) {
+                                                                                setProducts([]);
+                                                                                setTotalProducts(0);
+                                                                                setTotalPages(1);
+                                                                                return;
+                                                            }
                                                             const result = await res.json();
-                                                            setProducts(result.data);
-                                                            setTotalProducts(result.pagination.total);
-                                                            setTotalPages(result.pagination.totalPages);
+                                                            setProducts(Array.isArray(result.data) ? result.data : []);
+                                                            setTotalProducts(result.pagination?.total || 0);
+                                                            setTotalPages(result.pagination?.totalPages || 1);
                                         } catch (e) {
                                                             console.error("Failed to fetch products:", e);
+                                                            setProducts([]);
+                                                            setTotalProducts(0);
+                                                            setTotalPages(1);
                                         }
                     };
 
                     // Fetch categories
                     const fetchCategories = async () => {
                                         try {
-                                                            const res = await fetch(`${API_URL}/categories`);
+                                                            const token = localStorage.getItem('accessToken');
+                                                            const headers: Record<string, string> = {};
+                                                            if (token) {
+                                                                                headers["Authorization"] = `Bearer ${token}`;
+                                                            }
+                                                            const res = await fetch(`${API_URL}/categories`, { headers });
+                                                            if (!res.ok) {
+                                                                                setCategories([]);
+                                                                                return;
+                                                            }
                                                             const data = await res.json();
-                                                            setCategories(data);
+                                                            setCategories(Array.isArray(data) ? data : []);
                                         } catch (e) {
                                                             console.error("Failed to fetch categories:", e);
+                                                            setCategories([]);
                                         }
                     };
 
                     // Fetch modifiers
                     const fetchModifiers = async () => {
                                         try {
-                                                            const res = await fetch(`${API_URL}/modifiers`);
+                                                            const token = localStorage.getItem('accessToken');
+                                                            const headers: Record<string, string> = {};
+                                                            if (token) {
+                                                                                headers["Authorization"] = `Bearer ${token}`;
+                                                            }
+                                                            const res = await fetch(`${API_URL}/modifiers`, { headers });
+                                                            if (!res.ok) {
+                                                                                setModifiers([]);
+                                                                                return;
+                                                            }
                                                             const data = await res.json();
-                                                            setModifiers(data);
+                                                            setModifiers(Array.isArray(data) ? data : []);
                                         } catch (e) {
                                                             console.error("Failed to fetch modifiers:", e);
+                                                            setModifiers([]);
                                         }
                     };
 
@@ -256,17 +291,23 @@ export default function ProductsPage() {
                                         e.preventDefault();
                                         setLoading(true);
 
+                                        const token = localStorage.getItem('accessToken');
+                                        const headers: Record<string, string> = { "Content-Type": "application/json" };
+                                        if (token) {
+                                                            headers["Authorization"] = `Bearer ${token}`;
+                                        }
+
                                         try {
                                                             if (editingProduct) {
                                                                                 await fetch(`${API_URL}/products/${editingProduct.id}`, {
                                                                                                     method: "PUT",
-                                                                                                    headers: { "Content-Type": "application/json" },
+                                                                                                    headers,
                                                                                                     body: JSON.stringify(formData),
                                                                                 });
                                                             } else {
                                                                                 await fetch(`${API_URL}/products`, {
                                                                                                     method: "POST",
-                                                                                                    headers: { "Content-Type": "application/json" },
+                                                                                                    headers,
                                                                                                     body: JSON.stringify(formData),
                                                                                 });
                                                             }
@@ -297,10 +338,17 @@ export default function ProductsPage() {
                     const handleDelete = async () => {
                                         if (!productToDelete) return;
 
+                                        const token = localStorage.getItem('accessToken');
+                                        const headers: Record<string, string> = {};
+                                        if (token) {
+                                                            headers["Authorization"] = `Bearer ${token}`;
+                                        }
+
                                         setDeleting(true);
                                         try {
                                                             const res = await fetch(`${API_URL}/products/${productToDelete.id}`, {
                                                                                 method: "DELETE",
+                                                                                headers,
                                                             });
                                                             if (!res.ok) {
                                                                                 const error = await res.json();

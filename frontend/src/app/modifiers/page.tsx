@@ -27,11 +27,21 @@ export default function ModifiersPage() {
                     // Fetch modifiers
                     const fetchModifiers = async () => {
                                         try {
-                                                            const res = await fetch("http://localhost:3001/modifiers");
+                                                            const token = localStorage.getItem('accessToken');
+                                                            const headers: Record<string, string> = {};
+                                                            if (token) {
+                                                                                headers["Authorization"] = `Bearer ${token}`;
+                                                            }
+                                                            const res = await fetch("http://localhost:3001/modifiers", { headers });
+                                                            if (!res.ok) {
+                                                                                setModifiers([]);
+                                                                                return;
+                                                            }
                                                             const data = await res.json();
-                                                            setModifiers(data);
+                                                            setModifiers(Array.isArray(data) ? data : []);
                                         } catch (e) {
                                                             console.error("Failed to fetch modifiers:", e);
+                                                            setModifiers([]);
                                         }
                     };
 
@@ -107,17 +117,23 @@ export default function ModifiersPage() {
                                                             options: JSON.stringify(filteredOptions),
                                         };
 
+                                        const token = localStorage.getItem('accessToken');
+                                        const headers: Record<string, string> = { "Content-Type": "application/json" };
+                                        if (token) {
+                                                            headers["Authorization"] = `Bearer ${token}`;
+                                        }
+
                                         try {
                                                             if (editingModifier) {
                                                                                 await fetch(`http://localhost:3001/modifiers/${editingModifier.id}`, {
                                                                                                     method: "PUT",
-                                                                                                    headers: { "Content-Type": "application/json" },
+                                                                                                    headers,
                                                                                                     body: JSON.stringify(payload),
                                                                                 });
                                                             } else {
                                                                                 await fetch("http://localhost:3001/modifiers", {
                                                                                                     method: "POST",
-                                                                                                    headers: { "Content-Type": "application/json" },
+                                                                                                    headers,
                                                                                                     body: JSON.stringify(payload),
                                                                                 });
                                                             }
@@ -136,9 +152,16 @@ export default function ModifiersPage() {
                     const handleDelete = async (id: number) => {
                                         if (!confirm("Bạn có chắc muốn xóa modifier này?")) return;
 
+                                        const token = localStorage.getItem('accessToken');
+                                        const headers: Record<string, string> = {};
+                                        if (token) {
+                                                            headers["Authorization"] = `Bearer ${token}`;
+                                        }
+
                                         try {
                                                             const res = await fetch(`http://localhost:3001/modifiers/${id}`, {
                                                                                 method: "DELETE",
+                                                                                headers,
                                                             });
                                                             if (!res.ok) {
                                                                                 const error = await res.json();

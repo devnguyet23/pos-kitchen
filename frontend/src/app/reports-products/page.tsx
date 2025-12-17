@@ -67,10 +67,22 @@ export default function ReportsProductsPage() {
                                                                                 end = new Date(toYear, 11, 31, 23, 59, 59, 999);
                                                             }
 
-                                                            const res = await fetch(`http://localhost:3001/reports/revenue-by-product?from=${start.toISOString()}&to=${end.toISOString()}&interval=${interval}`);
+                                                            const token = localStorage.getItem('accessToken');
+                                                            const headers: Record<string, string> = {};
+                                                            if (token) {
+                                                                                headers["Authorization"] = `Bearer ${token}`;
+                                                            }
+
+                                                            const res = await fetch(`http://localhost:3001/reports/revenue-by-product?from=${start.toISOString()}&to=${end.toISOString()}&interval=${interval}`, { headers });
+                                                            if (!res.ok) {
+                                                                                setData([]);
+                                                                                setLegend([]);
+                                                                                setLoading(false);
+                                                                                return;
+                                                            }
                                                             const json = await res.json();
-                                                            setData(json.data || []);
-                                                            setLegend(json.legend || []);
+                                                            setData(Array.isArray(json.data) ? json.data : []);
+                                                            setLegend(Array.isArray(json.legend) ? json.legend : []);
                                         } catch (e) {
                                                             console.error("Error fetching report data:", e);
                                                             setData([]);

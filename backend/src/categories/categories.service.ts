@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
+import { CurrentUserData } from '../auth/decorators/current-user.decorator';
 
 @Injectable()
 export class CategoriesService {
@@ -19,7 +20,7 @@ export class CategoriesService {
                                         return this.getHierarchyDepth(parent.parentId, currentDepth + 1);
                     }
 
-                    async create(createCategoryDto: CreateCategoryDto) {
+                    async create(createCategoryDto: CreateCategoryDto, user?: CurrentUserData) {
                                         // Validate parent exists and check depth limit (max 3 levels)
                                         if (createCategoryDto.parentId) {
                                                             const parent = await this.prisma.category.findUnique({
@@ -40,6 +41,7 @@ export class CategoriesService {
                                                             data: {
                                                                                 name: createCategoryDto.name,
                                                                                 parentId: createCategoryDto.parentId || null,
+                                                                                ...(user?.chainId && { chainId: user.chainId }),
                                                             },
                                                             include: {
                                                                                 parent: true,
@@ -49,8 +51,14 @@ export class CategoriesService {
                                         });
                     }
 
-                    findAll() {
+                    findAll(user?: CurrentUserData) {
+                                        const where: any = {};
+                                        if (user?.chainId) {
+                                                            where.chainId = user.chainId;
+                                        }
+
                                         return this.prisma.category.findMany({
+                                                            where,
                                                             include: {
                                                                                 parent: true,
                                                                                 children: {

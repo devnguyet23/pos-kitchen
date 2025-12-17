@@ -74,11 +74,21 @@ export default function CategoriesPage() {
                     // Fetch categories
                     const fetchCategories = async () => {
                                         try {
-                                                            const res = await fetch("http://localhost:3001/categories");
+                                                            const token = localStorage.getItem('accessToken');
+                                                            const headers: Record<string, string> = {};
+                                                            if (token) {
+                                                                                headers["Authorization"] = `Bearer ${token}`;
+                                                            }
+                                                            const res = await fetch("http://localhost:3001/categories", { headers });
+                                                            if (!res.ok) {
+                                                                                setCategories([]);
+                                                                                return;
+                                                            }
                                                             const data = await res.json();
-                                                            setCategories(data);
+                                                            setCategories(Array.isArray(data) ? data : []);
                                         } catch (e) {
                                                             console.error("Failed to fetch categories:", e);
+                                                            setCategories([]);
                                         }
                     };
 
@@ -165,17 +175,23 @@ export default function CategoriesPage() {
                                         e.preventDefault();
                                         setLoading(true);
 
+                                        const token = localStorage.getItem('accessToken');
+                                        const headers: Record<string, string> = { "Content-Type": "application/json" };
+                                        if (token) {
+                                                            headers["Authorization"] = `Bearer ${token}`;
+                                        }
+
                                         try {
                                                             if (editingCategory) {
                                                                                 await fetch(`http://localhost:3001/categories/${editingCategory.id}`, {
                                                                                                     method: "PUT",
-                                                                                                    headers: { "Content-Type": "application/json" },
+                                                                                                    headers,
                                                                                                     body: JSON.stringify(formData),
                                                                                 });
                                                             } else {
                                                                                 await fetch("http://localhost:3001/categories", {
                                                                                                     method: "POST",
-                                                                                                    headers: { "Content-Type": "application/json" },
+                                                                                                    headers,
                                                                                                     body: JSON.stringify(formData),
                                                                                 });
                                                             }
@@ -200,9 +216,16 @@ export default function CategoriesPage() {
                     const confirmDelete = async () => {
                                         if (!categoryToDelete) return;
 
+                                        const token = localStorage.getItem('accessToken');
+                                        const headers: Record<string, string> = {};
+                                        if (token) {
+                                                            headers["Authorization"] = `Bearer ${token}`;
+                                        }
+
                                         try {
                                                             const res = await fetch(`http://localhost:3001/categories/${categoryToDelete.id}`, {
                                                                                 method: "DELETE",
+                                                                                headers,
                                                             });
                                                             if (!res.ok) {
                                                                                 const error = await res.json();
@@ -299,9 +322,15 @@ export default function CategoriesPage() {
                                         let failed = 0;
                                         for (let i = 0; i < deletableCategories.length; i++) {
                                                             const cat = deletableCategories[i];
+                                                            const token = localStorage.getItem('accessToken');
+                                                            const headers: Record<string, string> = {};
+                                                            if (token) {
+                                                                                headers["Authorization"] = `Bearer ${token}`;
+                                                            }
                                                             try {
                                                                                 const res = await fetch(`http://localhost:3001/categories/${cat.id}`, {
                                                                                                     method: "DELETE",
+                                                                                                    headers,
                                                                                 });
                                                                                 if (!res.ok) {
                                                                                                     failed++;

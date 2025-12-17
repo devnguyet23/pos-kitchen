@@ -1,22 +1,31 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CurrentUserData } from '../auth/decorators/current-user.decorator';
 
 @Injectable()
 export class ReportsService {
   constructor(private prisma: PrismaService) { }
 
-  async getRevenue(from: string, to: string, interval: 'day' | 'month' | 'year') {
+  async getRevenue(from: string, to: string, interval: 'day' | 'month' | 'year', user?: CurrentUserData) {
     const startDate = new Date(from);
     const endDate = new Date(to);
 
+    // Build scope filter
+    const invoiceWhere: any = {
+      createdAt: {
+        gte: startDate,
+        lte: endDate,
+      },
+    };
+    if (user?.storeId) {
+      invoiceWhere.storeId = user.storeId;
+    } else if (user?.chainId) {
+      invoiceWhere.store = { chainId: user.chainId };
+    }
+
     // Fetch invoices with order items to calculate revenue from items
     const invoices = await this.prisma.invoice.findMany({
-      where: {
-        createdAt: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
+      where: invoiceWhere,
       include: {
         order: {
           include: {
@@ -97,18 +106,26 @@ export class ReportsService {
     return result;
   }
 
-  async getRevenueByProduct(from: string, to: string, interval: 'day' | 'month' | 'year') {
+  async getRevenueByProduct(from: string, to: string, interval: 'day' | 'month' | 'year', user?: CurrentUserData) {
     const startDate = new Date(from);
     const endDate = new Date(to);
 
+    // Build scope filter
+    const invoiceWhere: any = {
+      createdAt: {
+        gte: startDate,
+        lte: endDate,
+      },
+    };
+    if (user?.storeId) {
+      invoiceWhere.storeId = user.storeId;
+    } else if (user?.chainId) {
+      invoiceWhere.store = { chainId: user.chainId };
+    }
+
     // Fetch invoices with order items and products
     const invoices = await this.prisma.invoice.findMany({
-      where: {
-        createdAt: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
+      where: invoiceWhere,
       include: {
         order: {
           include: {
@@ -187,18 +204,26 @@ export class ReportsService {
     return { data: result, legend };
   }
 
-  async getRevenueByCategory(from: string, to: string, interval: 'day' | 'month' | 'year') {
+  async getRevenueByCategory(from: string, to: string, interval: 'day' | 'month' | 'year', user?: CurrentUserData) {
     const startDate = new Date(from);
     const endDate = new Date(to);
 
+    // Build scope filter
+    const invoiceWhere: any = {
+      createdAt: {
+        gte: startDate,
+        lte: endDate,
+      },
+    };
+    if (user?.storeId) {
+      invoiceWhere.storeId = user.storeId;
+    } else if (user?.chainId) {
+      invoiceWhere.store = { chainId: user.chainId };
+    }
+
     // Fetch invoices with order items, products, and categories
     const invoices = await this.prisma.invoice.findMany({
-      where: {
-        createdAt: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
+      where: invoiceWhere,
       include: {
         order: {
           include: {

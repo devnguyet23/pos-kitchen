@@ -30,6 +30,8 @@ model Category {
   parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children    Category[] @relation("CategoryHierarchy")
   products    Product[]
+  chainId     Int?
+  chain       Chain?     @relation(fields: [chainId], references: [id])
   createdAt   DateTime   @default(now())
 }
 
@@ -44,6 +46,8 @@ model Product {
   modifiers   ProductModifier[]
   recipes     Recipe[]
   orderItems  OrderItem[]
+  chainId     Int?
+  chain       Chain?         @relation(fields: [chainId], references: [id])
   createdAt   DateTime       @default(now())
 }
 
@@ -52,6 +56,8 @@ model Modifier {
   name      String
   options   String   // JSON string of options: {"Sugar": ["30%", "50%"], "Ice": ["None", "Full"]}
   products  ProductModifier[]
+  chainId   Int?
+  chain     Chain?   @relation(fields: [chainId], references: [id])
 }
 
 model ProductModifier {
@@ -88,6 +94,10 @@ model Order {
   status     String      @default("PENDING") // PENDING, CONFIRMED, PREPARING, READY, COMPLETED, CANCELLED
   items      OrderItem[]
   total      Float       @default(0)
+  storeId    Int?
+  store      Store?      @relation(fields: [storeId], references: [id])
+  userId     Int?
+  user       User?       @relation("UserOrders", fields: [userId], references: [id])
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   invoice    Invoice?
@@ -113,6 +123,8 @@ model Invoice {
   serviceCharge Float    @default(0)
   total         Float
   paymentMethod String   @default("CASH")
+  storeId       Int?
+  store         Store?   @relation(fields: [storeId], references: [id])
   createdAt     DateTime @default(now())
 }
 
@@ -160,9 +172,12 @@ model Chain {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  stores    Store[]
-  users     User[]
-  userRoles UserRole[]
+  stores     Store[]
+  users      User[]
+  userRoles  UserRole[]
+  categories Category[]
+  products   Product[]
+  modifiers  Modifier[]
 
   @@map("chains")
 }
@@ -189,10 +204,12 @@ model Store {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  users     User[]
-  userRoles UserRole[]
-  shifts    Shift[]
-  orders    StoreOrder[]
+  users      User[]
+  userRoles  UserRole[]
+  shifts     Shift[]
+  orders     Order[]
+  invoices   Invoice[]
+  storeOrders StoreOrder[]
 
   @@index([chainId])
   @@map("stores")
@@ -234,6 +251,7 @@ model User {
   createdConstraints     PermissionConstraint[] @relation("ConstraintCreator")
   permissionConstraints  PermissionConstraint[] @relation("UserConstraints")
   storeOrders            StoreOrder[]
+  orders                 Order[]              @relation("UserOrders")
 
   @@index([chainId])
   @@index([storeId])

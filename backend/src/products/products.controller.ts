@@ -1,17 +1,26 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
+import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
 
 @Controller('products')
+@UseGuards(JwtAuthGuard)
 export class ProductsController {
                     constructor(private readonly productsService: ProductsService) { }
 
                     @Post()
-                    create(@Body() createProductDto: CreateProductDto) {
-                                        return this.productsService.create(createProductDto);
+                    @RequirePermissions('create_product')
+                    create(
+                                        @Body() createProductDto: CreateProductDto,
+                                        @CurrentUser() user: CurrentUserData,
+                    ) {
+                                        return this.productsService.create(createProductDto, user);
                     }
 
                     @Get()
+                    @RequirePermissions('view_products')
                     findAll(
                                         @Query('page') page?: string,
                                         @Query('limit') limit?: string,
@@ -19,6 +28,7 @@ export class ProductsController {
                                         @Query('categoryId') categoryId?: string,
                                         @Query('sortBy') sortBy?: 'id' | 'name' | 'price',
                                         @Query('sortOrder') sortOrder?: 'asc' | 'desc',
+                                        @CurrentUser() user?: CurrentUserData,
                     ) {
                                         return this.productsService.findAll({
                                                             page: page ? parseInt(page, 10) : undefined,
@@ -27,15 +37,17 @@ export class ProductsController {
                                                             categoryId: categoryId ? parseInt(categoryId, 10) : undefined,
                                                             sortBy,
                                                             sortOrder,
-                                        });
+                                        }, user);
                     }
 
                     @Get(':id')
+                    @RequirePermissions('view_products')
                     findOne(@Param('id', ParseIntPipe) id: number) {
                                         return this.productsService.findOne(id);
                     }
 
                     @Put(':id')
+                    @RequirePermissions('edit_product')
                     update(
                                         @Param('id', ParseIntPipe) id: number,
                                         @Body() updateProductDto: UpdateProductDto,
@@ -44,6 +56,7 @@ export class ProductsController {
                     }
 
                     @Delete(':id')
+                    @RequirePermissions('delete_product')
                     remove(@Param('id', ParseIntPipe) id: number) {
                                         return this.productsService.remove(id);
                     }

@@ -67,10 +67,22 @@ export default function ReportsCategoriesPage() {
                                                                                 end = new Date(toYear, 11, 31, 23, 59, 59, 999);
                                                             }
 
-                                                            const res = await fetch(`http://localhost:3001/reports/revenue-by-category?from=${start.toISOString()}&to=${end.toISOString()}&interval=${interval}`);
+                                                            const token = localStorage.getItem('accessToken');
+                                                            const headers: Record<string, string> = {};
+                                                            if (token) {
+                                                                                headers["Authorization"] = `Bearer ${token}`;
+                                                            }
+
+                                                            const res = await fetch(`http://localhost:3001/reports/revenue-by-category?from=${start.toISOString()}&to=${end.toISOString()}&interval=${interval}`, { headers });
+                                                            if (!res.ok) {
+                                                                                setData([]);
+                                                                                setLegend([]);
+                                                                                setLoading(false);
+                                                                                return;
+                                                            }
                                                             const json = await res.json();
-                                                            setData(json.data || []);
-                                                            setLegend(json.legend || []);
+                                                            setData(Array.isArray(json.data) ? json.data : []);
+                                                            setLegend(Array.isArray(json.legend) ? json.legend : []);
                                         } catch (e) {
                                                             console.error("Error fetching report data:", e);
                                                             setData([]);
@@ -163,8 +175,8 @@ export default function ReportsCategoriesPage() {
                                                                                                                                                                 key={intv}
                                                                                                                                                                 onClick={() => setInterval(intv)}
                                                                                                                                                                 className={`px-4 py-2 text-sm font-medium transition ${interval === intv
-                                                                                                                                                                                                        ? "bg-blue-500 text-white"
-                                                                                                                                                                                                        : "bg-white text-gray-600 hover:bg-gray-100"
+                                                                                                                                                                                    ? "bg-blue-500 text-white"
+                                                                                                                                                                                    : "bg-white text-gray-600 hover:bg-gray-100"
                                                                                                                                                                                     }`}
                                                                                                                                             >
                                                                                                                                                                 {intv === "day" ? "Ngày" : intv === "month" ? "Tháng" : "Năm"}

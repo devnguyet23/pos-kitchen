@@ -39,7 +39,7 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: pos_frontend
     restart: always
     ports:
@@ -50,6 +50,9 @@ services:
       # But if using SSR to call backend, it needs container name.
       # For this demo, we assume Client Side Fetching mostly.
       NEXT_PUBLIC_API_URL: "http://localhost:3001"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
     depends_on:
       - backend
 

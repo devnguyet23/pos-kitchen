@@ -73,6 +73,12 @@ export default function RetailPage() {
   // Fetch products from API with search and category filters
   const fetchProducts = async () => {
     try {
+      const token = localStorage.getItem('accessToken');
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const params = new URLSearchParams();
       if (debouncedSearch) {
         params.append('search', debouncedSearch);
@@ -80,11 +86,16 @@ export default function RetailPage() {
       if (selectedCategory !== null) {
         params.append('categoryId', selectedCategory.toString());
       }
-      const res = await fetch(`${API_URL}/products?${params.toString()}`);
+      const res = await fetch(`${API_URL}/products?${params.toString()}`, { headers });
+      if (!res.ok) {
+        setProducts([]);
+        return;
+      }
       const result = await res.json();
-      setProducts(result.data || result);
+      setProducts(Array.isArray(result.data) ? result.data : (Array.isArray(result) ? result : []));
     } catch (e) {
       console.error(e);
+      setProducts([]);
     }
   };
 
@@ -95,10 +106,22 @@ export default function RetailPage() {
 
   // Fetch categories
   useEffect(() => {
-    fetch(`${API_URL}/categories`)
-      .then((res) => res.json())
-      .then((data) => setCategories(data))
-      .catch((e) => console.error(e));
+    const token = localStorage.getItem('accessToken');
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    fetch(`${API_URL}/categories`, { headers })
+      .then((res) => {
+        if (!res.ok) return [];
+        return res.json();
+      })
+      .then((data) => setCategories(Array.isArray(data) ? data : []))
+      .catch((e) => {
+        console.error(e);
+        setCategories([]);
+      });
 
     // Load drafts from localStorage
     const savedDrafts = localStorage.getItem("pos_drafts");
@@ -233,10 +256,17 @@ export default function RetailPage() {
   const checkout = async (printInvoice: boolean = false) => {
     if (cart.length === 0) return;
     setShowPaymentOptions(false);
+
+    const token = localStorage.getItem('accessToken');
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     try {
       const res = await fetch(`${API_URL}/orders`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           tableId: null,
           items: cart.map(({ productId, quantity, notes }) => ({
@@ -252,7 +282,7 @@ export default function RetailPage() {
 
       const invoiceRes = await fetch(`${API_URL}/invoices`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ tableId: null, orderId: order.id }),
       });
 

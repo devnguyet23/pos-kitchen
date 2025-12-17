@@ -9,7 +9,7 @@ export class UsersService {
                     constructor(private prisma: PrismaService) { }
 
                     async create(createUserDto: CreateUserDto, currentUser: CurrentUserData) {
-                                        const { username, email, password, chainId, storeId, ...rest } = createUserDto;
+                                        const { username, email, password, chainId, storeId, roleId, ...rest } = createUserDto;
 
                                         // Check if username exists
                                         const existingUser = await this.prisma.user.findFirst({
@@ -30,7 +30,7 @@ export class UsersService {
                                         // Hash password
                                         const hashedPassword = await bcrypt.hash(password, 10);
 
-                                        return this.prisma.user.create({
+                                        const user = await this.prisma.user.create({
                                                             data: {
                                                                                 username,
                                                                                 email,
@@ -41,6 +41,12 @@ export class UsersService {
                                                             },
                                                             select: this.getUserSelect(),
                                         });
+
+                                        if (roleId) {
+                                                            await this.assignRole(user.id, { roleId, chainId, storeId }, currentUser);
+                                        }
+
+                                        return user;
                     }
 
                     async findAll(params: {
@@ -152,11 +158,27 @@ export class UsersService {
                                                             throw new ForbiddenException('Bạn không có quyền sửa thông tin người dùng này');
                                         }
 
-                                        return this.prisma.user.update({
+                                        const { chainId, storeId, roleId, ...rest } = updateUserDto;
+
+                                        const updatedUser = await this.prisma.user.update({
                                                             where: { id },
-                                                            data: updateUserDto,
+                                                            data: {
+                                                                                ...rest,
+                                                                                ...(chainId !== undefined && {
+                                                                                                    chain: chainId ? { connect: { id: chainId } } : { disconnect: true },
+                                                                                }),
+                                                                                ...(storeId !== undefined && {
+                                                                                                    store: storeId ? { connect: { id: storeId } } : { disconnect: true },
+                                                                                }),
+                                                            },
                                                             select: this.getUserSelect(),
                                         });
+
+                                        if (roleId) {
+                                                            await this.assignRole(id, { roleId, chainId, storeId }, currentUser);
+                                        }
+
+                                        return updatedUser;
                     }
 
                     async remove(id: number, currentUser: CurrentUserData) {

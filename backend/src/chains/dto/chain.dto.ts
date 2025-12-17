@@ -42,6 +42,10 @@ export class CreateChainDto {
                     @IsString()
                     @IsOptional()
                     taxCode?: string;
+
+                    @IsEnum(ChainStatus)
+                    @IsOptional()
+                    status?: ChainStatus;
 }
 
 export class UpdateChainDto {

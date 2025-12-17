@@ -37,6 +37,10 @@ export class CreateUserDto {
                     @IsOptional()
                     storeId?: number;
 
+                    @IsNumber()
+                    @IsOptional()
+                    roleId?: number;
+
                     @IsString()
                     @IsOptional()
                     avatarUrl?: string;
@@ -48,9 +52,21 @@ export class CreateUserDto {
                     @IsString()
                     @IsOptional()
                     citizenId?: string;
+
+                    @IsEnum(UserStatus)
+                    @IsOptional()
+                    status?: UserStatus;
 }
 
 export class UpdateUserDto {
+                    @IsString()
+                    @IsOptional()
+                    username?: string;
+
+                    @IsEmail({}, { message: 'Email không hợp lệ' })
+                    @IsOptional()
+                    email?: string;
+
                     @IsString()
                     @IsOptional()
                     fullName?: string;
@@ -58,6 +74,10 @@ export class UpdateUserDto {
                     @IsString()
                     @IsOptional()
                     phone?: string;
+
+                    @IsNumber()
+                    @IsOptional()
+                    roleId?: number;
 
                     @IsNumber()
                     @IsOptional()

@@ -56,6 +56,10 @@ export class CreateStoreDto {
                     @IsString()
                     @IsOptional()
                     closingTime?: string;
+
+                    @IsEnum(StoreStatus)
+                    @IsOptional()
+                    status?: StoreStatus;
 }
 
 export class UpdateStoreDto {

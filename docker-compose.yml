@@ -26,13 +26,14 @@ services:
       - "3001:3001"
     environment:
       DATABASE_URL: "postgresql://postgres:password@postgres:5432/pos_db"
+      JWT_SECRET: "pos-system-secret-key-change-in-production"
       PORT: 3001
     depends_on:
       - postgres
     # Wait for DB to be ready before running migrations and starting
     # Using db push for initial schema creation (no migrations folder needed)
     command: >
-      sh -c "sleep 5 && npx prisma db push --accept-data-loss && npx ts-node prisma/seed.ts && npm run start:prod"
+      sh -c "sleep 5 && npx prisma db push --accept-data-loss && npx ts-node prisma/seed.ts && npx ts-node prisma/seed-permissions.ts && npm run start:prod"
 
   # Frontend Service (Next.js)
   frontend:

@@ -11,6 +11,14 @@ import { ModifiersModule } from './modifiers/modifiers.module';
 import { CategoriesModule } from './categories/categories.module';
 import { UploadModule } from './upload/upload.module';
 import { AuthModule } from './auth/auth.module';
+// Permission system modules
+import { ChainsModule } from './chains/chains.module';
+import { StoresManagementModule } from './stores-management/stores-management.module';
+import { UsersModule } from './users/users.module';
+import { RolesModule } from './roles/roles.module';
+import { PermissionsModule } from './permissions/permissions.module';
+import { ShiftsModule } from './shifts/shifts.module';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
 
 @Module({
                     imports: [
@@ -20,6 +28,15 @@ import { AuthModule } from './auth/auth.module';
                                         }),
                                         PrismaModule,
                                         AuthModule,
+                                        // Permission system modules
+                                        ChainsModule,
+                                        StoresManagementModule,
+                                        UsersModule,
+                                        RolesModule,
+                                        PermissionsModule,
+                                        ShiftsModule,
+                                        AuditLogsModule,
+                                        // Existing modules
                                         EventsModule,
                                         InvoicesModule,
                                         ReportsModule,
@@ -31,4 +48,3 @@ import { AuthModule } from './auth/auth.module';
                     ],
 })
 export class AppModule { }
-

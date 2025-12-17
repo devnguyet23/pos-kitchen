@@ -3,13 +3,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { EventsGateway } from '../events/events.gateway';
 import { CurrentUserData } from '../auth/decorators/current-user.decorator';
+import { BaseTenantService } from '../common/base-tenant.service';
 
 @Injectable()
-export class OrdersService {
+export class OrdersService extends BaseTenantService {
                     constructor(
                                         private prisma: PrismaService,
                                         private eventsGateway: EventsGateway,
-                    ) { }
+                    ) {
+                                        super();
+                    }
 
                     async create(createOrderDto: CreateOrderDto, user?: CurrentUserData) {
                                         const { tableId, items } = createOrderDto;

@@ -2,10 +2,13 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import { CurrentUserData } from '../auth/decorators/current-user.decorator';
+import { BaseTenantService } from '../common/base-tenant.service';
 
 @Injectable()
-export class CategoriesService {
-                    constructor(private prisma: PrismaService) { }
+export class CategoriesService extends BaseTenantService {
+                    constructor(private prisma: PrismaService) {
+                                        super();
+                    }
 
                     // Helper to get hierarchy depth
                     private async getHierarchyDepth(parentId: number, currentDepth = 1): Promise<number> {
@@ -52,9 +55,14 @@ export class CategoriesService {
                     }
 
                     findAll(user?: CurrentUserData) {
-                                        const where: any = {};
-                                        if (user?.chainId) {
-                                                            where.chainId = user.chainId;
+                                        // Build where clause with tenant filter
+                                        const where: { chainId?: number } = {};
+
+                                        if (user) {
+                                                            const tenantFilter = this.getChainFilter(user);
+                                                            if (tenantFilter.chainId) {
+                                                                                where.chainId = tenantFilter.chainId;
+                                                            }
                                         }
 
                                         return this.prisma.category.findMany({

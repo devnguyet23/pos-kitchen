@@ -2,10 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
 import { CurrentUserData } from '../auth/decorators/current-user.decorator';
+import { BaseTenantService } from '../common/base-tenant.service';
 
 @Injectable()
-export class ProductsService {
-                    constructor(private prisma: PrismaService) { }
+export class ProductsService extends BaseTenantService {
+                    constructor(private prisma: PrismaService) {
+                                        super();
+                    }
 
                     async create(createProductDto: CreateProductDto, user?: CurrentUserData) {
                                         const { modifierIds, ...data } = createProductDto;

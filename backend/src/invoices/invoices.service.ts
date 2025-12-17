@@ -3,13 +3,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { EventsGateway } from '../events/events.gateway';
 import { CurrentUserData } from '../auth/decorators/current-user.decorator';
+import { BaseTenantService } from '../common/base-tenant.service';
 
 @Injectable()
-export class InvoicesService {
+export class InvoicesService extends BaseTenantService {
   constructor(
     private prisma: PrismaService,
     private eventsGateway: EventsGateway,
-  ) { }
+  ) {
+    super();
+  }
 
   async create(createInvoiceDto: CreateInvoiceDto, user?: CurrentUserData) {
     const { tableId, orderId, paymentMethod } = createInvoiceDto;

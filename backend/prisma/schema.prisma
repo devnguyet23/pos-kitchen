@@ -33,6 +33,10 @@ model Category {
   chainId     Int?
   chain       Chain?     @relation(fields: [chainId], references: [id])
   createdAt   DateTime   @default(now())
+
+  @@index([chainId, parentId])
+  @@index([chainId, name])
+  @@map("categories")
 }
 
 model Product {
@@ -49,15 +53,23 @@ model Product {
   chainId     Int?
   chain       Chain?         @relation(fields: [chainId], references: [id])
   createdAt   DateTime       @default(now())
+
+  @@index([chainId, categoryId])
+  @@index([chainId, status])
+  @@index([chainId, name])
+  @@map("products")
 }
 
 model Modifier {
   id        Int      @id @default(autoincrement())
   name      String
-  options   String   // JSON string of options: {"Sugar": ["30%", "50%"], "Ice": ["None", "Full"]}
+  options   String   // JSON string of options
   products  ProductModifier[]
   chainId   Int?
   chain     Chain?   @relation(fields: [chainId], references: [id])
+
+  @@index([chainId])
+  @@map("modifiers")
 }
 
 model ProductModifier {
@@ -94,6 +106,8 @@ model Order {
   status     String      @default("PENDING") // PENDING, CONFIRMED, PREPARING, READY, COMPLETED, CANCELLED
   items      OrderItem[]
   total      Float       @default(0)
+  chainId    Int?        // Denormalized for faster queries
+  chain      Chain?      @relation(fields: [chainId], references: [id])
   storeId    Int?
   store      Store?      @relation(fields: [storeId], references: [id])
   userId     Int?
@@ -101,6 +115,11 @@ model Order {
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   invoice    Invoice?
+
+  @@index([chainId, storeId, createdAt])
+  @@index([storeId, createdAt])
+  @@index([status, createdAt])
+  @@map("orders")
 }
 
 model OrderItem {
@@ -112,6 +131,12 @@ model OrderItem {
   quantity  Int
   notes     String? // "No sugar", etc.
   status    String  @default("PENDING") // PENDING, COOKING, DONE
+  chainId   Int?    // Denormalized for analytics
+  storeId   Int?    // Denormalized for store reports
+
+  @@index([chainId, storeId])
+  @@index([orderId])
+  @@map("order_items")
 }
 
 model Invoice {
@@ -123,9 +148,15 @@ model Invoice {
   serviceCharge Float    @default(0)
   total         Float
   paymentMethod String   @default("CASH")
+  chainId       Int?     // Denormalized for faster queries
+  chain         Chain?   @relation(fields: [chainId], references: [id])
   storeId       Int?
   store         Store?   @relation(fields: [storeId], references: [id])
   createdAt     DateTime @default(now())
+
+  @@index([chainId, storeId, createdAt])
+  @@index([storeId, createdAt])
+  @@map("invoices")
 }
 
 // =============================================
@@ -178,7 +209,10 @@ model Chain {
   categories Category[]
   products   Product[]
   modifiers  Modifier[]
+  orders     Order[]     // NEW: Direct relation for denormalization
+  invoices   Invoice[]   // NEW: Direct relation for denormalization
 
+  @@index([status])
   @@map("chains")
 }
 

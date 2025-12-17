@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUserData } from '../auth/decorators/current-user.decorator';
+import { BaseTenantService } from '../common/base-tenant.service';
 
 @Injectable()
-export class ReportsService {
-  constructor(private prisma: PrismaService) { }
+export class ReportsService extends BaseTenantService {
+  constructor(private prisma: PrismaService) {
+    super();
+  }
 
   async getRevenue(from: string, to: string, interval: 'day' | 'month' | 'year', user?: CurrentUserData) {
     const startDate = new Date(from);

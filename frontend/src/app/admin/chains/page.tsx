@@ -5,6 +5,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { api } from '@/lib/api';
 import { Chain, ApiResponse } from '@/lib/types';
 import { Building2, Plus, Search, Edit2, Trash2, Store, Users } from 'lucide-react';
+import ChainModal from '@/components/admin/ChainModal';
 
 export default function ChainsPage() {
                     const [chains, setChains] = useState<Chain[]>([]);
@@ -12,6 +13,8 @@ export default function ChainsPage() {
                     const [search, setSearch] = useState('');
                     const [page, setPage] = useState(1);
                     const [totalPages, setTotalPages] = useState(1);
+                    const [showModal, setShowModal] = useState(false);
+                    const [selectedChain, setSelectedChain] = useState<Chain | null>(null);
 
                     const fetchChains = async () => {
                                         setLoading(true);
@@ -45,6 +48,16 @@ export default function ChainsPage() {
                                         }
                     };
 
+                    const openAddModal = () => {
+                                        setSelectedChain(null);
+                                        setShowModal(true);
+                    };
+
+                    const openEditModal = (chain: Chain) => {
+                                        setSelectedChain(chain);
+                                        setShowModal(true);
+                    };
+
                     return (
                                         <ProtectedRoute permissions={['view_chains']}>
                                                             <div className="ml-64 p-8">
@@ -58,7 +71,10 @@ export default function ChainsPage() {
                                                                                                                                             </h1>
                                                                                                                                             <p className="text-gray-500 mt-1">Quản lý các chuỗi cửa hàng trong hệ thống</p>
                                                                                                                         </div>
-                                                                                                                        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                                                                                                        <button
+                                                                                                                                            onClick={openAddModal}
+                                                                                                                                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                                                                                                        >
                                                                                                                                             <Plus size={20} />
                                                                                                                                             Thêm chuỗi
                                                                                                                         </button>
@@ -121,10 +137,10 @@ export default function ChainsPage() {
                                                                                                                                                                                                                             </td>
                                                                                                                                                                                                                             <td className="px-6 py-4">
                                                                                                                                                                                                                                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${chain.status === 'ACTIVE'
-                                                                                                                                                                                                                                                                                        ? 'bg-green-100 text-green-700'
-                                                                                                                                                                                                                                                                                        : chain.status === 'SUSPENDED'
-                                                                                                                                                                                                                                                                                                            ? 'bg-red-100 text-red-700'
-                                                                                                                                                                                                                                                                                                            : 'bg-gray-100 text-gray-700'
+                                                                                                                                                                                                                                                                    ? 'bg-green-100 text-green-700'
+                                                                                                                                                                                                                                                                    : chain.status === 'SUSPENDED'
+                                                                                                                                                                                                                                                                                        ? 'bg-red-100 text-red-700'
+                                                                                                                                                                                                                                                                                        : 'bg-gray-100 text-gray-700'
                                                                                                                                                                                                                                                                     }`}>
                                                                                                                                                                                                                                                                     {chain.status === 'ACTIVE' ? 'Hoạt động' : chain.status === 'SUSPENDED' ? 'Tạm dừng' : 'Không hoạt động'}
                                                                                                                                                                                                                                                 </span>
@@ -143,7 +159,10 @@ export default function ChainsPage() {
                                                                                                                                                                                                                             </td>
                                                                                                                                                                                                                             <td className="px-6 py-4 text-right">
                                                                                                                                                                                                                                                 <div className="flex items-center justify-end gap-2">
-                                                                                                                                                                                                                                                                    <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                                                                                                                                                                                                                                                    <button
+                                                                                                                                                                                                                                                                                        onClick={() => openEditModal(chain)}
+                                                                                                                                                                                                                                                                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                                                                                                                                                                                                                                    >
                                                                                                                                                                                                                                                                                         <Edit2 size={18} />
                                                                                                                                                                                                                                                                     </button>
                                                                                                                                                                                                                                                                     <button
@@ -185,6 +204,14 @@ export default function ChainsPage() {
                                                                                                     </div>
                                                                                 </div>
                                                             </div>
+
+                                                            {/* Chain Modal */}
+                                                            <ChainModal
+                                                                                isOpen={showModal}
+                                                                                onClose={() => setShowModal(false)}
+                                                                                chain={selectedChain}
+                                                                                onSuccess={fetchChains}
+                                                            />
                                         </ProtectedRoute>
                     );
 }

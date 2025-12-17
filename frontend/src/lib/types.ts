@@ -32,6 +32,12 @@ export interface Chain {
                     email?: string;
                     phone?: string;
                     address?: string;
+                    website?: string;
+                    taxCode?: string;
+                    _count?: {
+                                        stores?: number;
+                                        users?: number;
+                    };
 }
 
 export interface Store {
@@ -44,6 +50,9 @@ export interface Store {
                     phone?: string;
                     email?: string;
                     chain?: Chain;
+                    _count?: {
+                                        users?: number;
+                    };
 }
 
 export interface Role {

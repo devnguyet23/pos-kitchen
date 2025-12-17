@@ -37,6 +37,10 @@ export class CreateChainDto {
 
                     @IsString()
                     @IsOptional()
+                    website?: string;
+
+                    @IsString()
+                    @IsOptional()
                     taxCode?: string;
 }
 
@@ -64,6 +68,10 @@ export class UpdateChainDto {
                     @IsString()
                     @IsOptional()
                     address?: string;
+
+                    @IsString()
+                    @IsOptional()
+                    website?: string;
 
                     @IsString()
                     @IsOptional()

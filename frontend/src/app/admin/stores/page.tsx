@@ -5,13 +5,17 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { api } from '@/lib/api';
 import { Store, ApiResponse, Chain } from '@/lib/types';
 import { Store as StoreIcon, Plus, Search, Edit2, Trash2, Users, MapPin } from 'lucide-react';
+import StoreModal from '@/components/admin/StoreModal';
 
 export default function StoresPage() {
                     const [stores, setStores] = useState<Store[]>([]);
+                    const [chains, setChains] = useState<Chain[]>([]);
                     const [loading, setLoading] = useState(true);
                     const [search, setSearch] = useState('');
                     const [page, setPage] = useState(1);
                     const [totalPages, setTotalPages] = useState(1);
+                    const [showModal, setShowModal] = useState(false);
+                    const [selectedStore, setSelectedStore] = useState<Store | null>(null);
 
                     const fetchStores = async () => {
                                         setLoading(true);
@@ -31,8 +35,18 @@ export default function StoresPage() {
                                         }
                     };
 
+                    const fetchChains = async () => {
+                                        try {
+                                                            const response = await api.get<ApiResponse<Chain[]>>('/chains?pageSize=100');
+                                                            setChains(response.data);
+                                        } catch (error) {
+                                                            console.error('Failed to fetch chains:', error);
+                                        }
+                    };
+
                     useEffect(() => {
                                         fetchStores();
+                                        fetchChains();
                     }, [page, search]);
 
                     const handleDelete = async (id: number) => {
@@ -43,6 +57,16 @@ export default function StoresPage() {
                                         } catch (error: any) {
                                                             alert(error.message);
                                         }
+                    };
+
+                    const openAddModal = () => {
+                                        setSelectedStore(null);
+                                        setShowModal(true);
+                    };
+
+                    const openEditModal = (store: Store) => {
+                                        setSelectedStore(store);
+                                        setShowModal(true);
                     };
 
                     return (
@@ -58,7 +82,10 @@ export default function StoresPage() {
                                                                                                                                             </h1>
                                                                                                                                             <p className="text-gray-500 mt-1">Quản lý các cửa hàng trong chuỗi</p>
                                                                                                                         </div>
-                                                                                                                        <button className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                                                                                                                        <button
+                                                                                                                                            onClick={openAddModal}
+                                                                                                                                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                                                                                                                        >
                                                                                                                                             <Plus size={20} />
                                                                                                                                             Thêm cửa hàng
                                                                                                                         </button>
@@ -131,10 +158,10 @@ export default function StoresPage() {
                                                                                                                                                                                                                             </td>
                                                                                                                                                                                                                             <td className="px-6 py-4">
                                                                                                                                                                                                                                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${store.status === 'ACTIVE'
-                                                                                                                                                                                                                                                                                        ? 'bg-green-100 text-green-700'
-                                                                                                                                                                                                                                                                                        : store.status === 'MAINTENANCE'
-                                                                                                                                                                                                                                                                                                            ? 'bg-yellow-100 text-yellow-700'
-                                                                                                                                                                                                                                                                                                            : 'bg-gray-100 text-gray-700'
+                                                                                                                                                                                                                                                                    ? 'bg-green-100 text-green-700'
+                                                                                                                                                                                                                                                                    : store.status === 'MAINTENANCE'
+                                                                                                                                                                                                                                                                                        ? 'bg-yellow-100 text-yellow-700'
+                                                                                                                                                                                                                                                                                        : 'bg-gray-100 text-gray-700'
                                                                                                                                                                                                                                                                     }`}>
                                                                                                                                                                                                                                                                     {store.status === 'ACTIVE' ? 'Hoạt động' : store.status === 'MAINTENANCE' ? 'Bảo trì' : 'Không hoạt động'}
                                                                                                                                                                                                                                                 </span>
@@ -147,7 +174,10 @@ export default function StoresPage() {
                                                                                                                                                                                                                             </td>
                                                                                                                                                                                                                             <td className="px-6 py-4 text-right">
                                                                                                                                                                                                                                                 <div className="flex items-center justify-end gap-2">
-                                                                                                                                                                                                                                                                    <button className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+                                                                                                                                                                                                                                                                    <button
+                                                                                                                                                                                                                                                                                        onClick={() => openEditModal(store)}
+                                                                                                                                                                                                                                                                                        className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                                                                                                                                                                                                                                    >
                                                                                                                                                                                                                                                                                         <Edit2 size={18} />
                                                                                                                                                                                                                                                                     </button>
                                                                                                                                                                                                                                                                     <button
@@ -189,6 +219,15 @@ export default function StoresPage() {
                                                                                                     </div>
                                                                                 </div>
                                                             </div>
+
+                                                            {/* Store Modal */}
+                                                            <StoreModal
+                                                                                isOpen={showModal}
+                                                                                onClose={() => setShowModal(false)}
+                                                                                store={selectedStore}
+                                                                                onSuccess={fetchStores}
+                                                                                chains={chains}
+                                                            />
                                         </ProtectedRoute>
                     );
 }

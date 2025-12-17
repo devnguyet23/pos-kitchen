@@ -153,6 +153,7 @@ model Chain {
   description String?     @db.Text
   email       String?
   phone       String?
+  website     String?
   address     String?     @db.Text
   taxCode     String?
   settings    Json?

@@ -3,15 +3,21 @@
 import { useState, useEffect } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { api } from '@/lib/api';
-import { User, ApiResponse } from '@/lib/types';
+import { User, ApiResponse, Chain, Store, Role } from '@/lib/types';
 import { Users, Plus, Search, Edit2, Trash2, Lock, Unlock, Shield } from 'lucide-react';
+import UserModal from '@/components/admin/UserModal';
 
 export default function UsersPage() {
                     const [users, setUsers] = useState<User[]>([]);
+                    const [chains, setChains] = useState<Chain[]>([]);
+                    const [stores, setStores] = useState<Store[]>([]);
+                    const [roles, setRoles] = useState<Role[]>([]);
                     const [loading, setLoading] = useState(true);
                     const [search, setSearch] = useState('');
                     const [page, setPage] = useState(1);
                     const [totalPages, setTotalPages] = useState(1);
+                    const [showModal, setShowModal] = useState(false);
+                    const [selectedUser, setSelectedUser] = useState<any | null>(null);
 
                     const fetchUsers = async () => {
                                         setLoading(true);
@@ -31,8 +37,24 @@ export default function UsersPage() {
                                         }
                     };
 
+                    const fetchMetadata = async () => {
+                                        try {
+                                                            const [chainsRes, storesRes, rolesRes] = await Promise.all([
+                                                                                api.get<ApiResponse<Chain[]>>('/chains?pageSize=100'),
+                                                                                api.get<ApiResponse<Store[]>>('/stores-management?pageSize=100'),
+                                                                                api.get<ApiResponse<Role[]>>('/roles?pageSize=100'),
+                                                            ]);
+                                                            setChains(chainsRes.data);
+                                                            setStores(storesRes.data);
+                                                            setRoles(rolesRes.data);
+                                        } catch (error) {
+                                                            console.error('Failed to fetch metadata:', error);
+                                        }
+                    };
+
                     useEffect(() => {
                                         fetchUsers();
+                                        fetchMetadata();
                     }, [page, search]);
 
                     const handleDelete = async (id: number) => {
@@ -52,6 +74,16 @@ export default function UsersPage() {
                                         } catch (error: any) {
                                                             alert(error.message);
                                         }
+                    };
+
+                    const openAddModal = () => {
+                                        setSelectedUser(null);
+                                        setShowModal(true);
+                    };
+
+                    const openEditModal = (user: any) => {
+                                        setSelectedUser(user);
+                                        setShowModal(true);
                     };
 
                     const getRoleBadgeColor = (roleCode: string) => {
@@ -81,7 +113,10 @@ export default function UsersPage() {
                                                                                                                                             </h1>
                                                                                                                                             <p className="text-gray-500 mt-1">Quản lý nhân viên và phân quyền</p>
                                                                                                                         </div>
-                                                                                                                        <button className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+                                                                                                                        <button
+                                                                                                                                            onClick={openAddModal}
+                                                                                                                                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                                                                                                                        >
                                                                                                                                             <Plus size={20} />
                                                                                                                                             Thêm người dùng
                                                                                                                         </button>
@@ -153,10 +188,10 @@ export default function UsersPage() {
                                                                                                                                                                                                                             </td>
                                                                                                                                                                                                                             <td className="px-6 py-4">
                                                                                                                                                                                                                                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${user.status === 'ACTIVE'
-                                                                                                                                                                                                                                                                                        ? 'bg-green-100 text-green-700'
-                                                                                                                                                                                                                                                                                        : user.status === 'SUSPENDED'
-                                                                                                                                                                                                                                                                                                            ? 'bg-red-100 text-red-700'
-                                                                                                                                                                                                                                                                                                            : 'bg-gray-100 text-gray-700'
+                                                                                                                                                                                                                                                                    ? 'bg-green-100 text-green-700'
+                                                                                                                                                                                                                                                                    : user.status === 'SUSPENDED'
+                                                                                                                                                                                                                                                                                        ? 'bg-red-100 text-red-700'
+                                                                                                                                                                                                                                                                                        : 'bg-gray-100 text-gray-700'
                                                                                                                                                                                                                                                                     }`}>
                                                                                                                                                                                                                                                                     {user.status === 'ACTIVE' ? 'Hoạt động' : user.status === 'SUSPENDED' ? 'Bị khóa' : 'Không hoạt động'}
                                                                                                                                                                                                                                                 </span>
@@ -174,15 +209,18 @@ export default function UsersPage() {
                                                                                                                                                                                                                                                                     >
                                                                                                                                                                                                                                                                                         <Shield size={18} />
                                                                                                                                                                                                                                                                     </button>
-                                                                                                                                                                                                                                                                    <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                                                                                                                                                                                                                                                    <button
+                                                                                                                                                                                                                                                                                        onClick={() => openEditModal(user)}
+                                                                                                                                                                                                                                                                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                                                                                                                                                                                                                                    >
                                                                                                                                                                                                                                                                                         <Edit2 size={18} />
                                                                                                                                                                                                                                                                     </button>
                                                                                                                                                                                                                                                                     <button
                                                                                                                                                                                                                                                                                         onClick={() => handleToggleLock(user.id, user.status === 'SUSPENDED')}
                                                                                                                                                                                                                                                                                         title={user.status === 'SUSPENDED' ? 'Mở khóa' : 'Khóa'}
                                                                                                                                                                                                                                                                                         className={`p-2 rounded-lg transition-colors ${user.status === 'SUSPENDED'
-                                                                                                                                                                                                                                                                                                                                ? 'text-green-400 hover:text-green-600 hover:bg-green-50'
-                                                                                                                                                                                                                                                                                                                                : 'text-gray-400 hover:text-yellow-600 hover:bg-yellow-50'
+                                                                                                                                                                                                                                                                                                            ? 'text-green-400 hover:text-green-600 hover:bg-green-50'
+                                                                                                                                                                                                                                                                                                            : 'text-gray-400 hover:text-yellow-600 hover:bg-yellow-50'
                                                                                                                                                                                                                                                                                                             }`}
                                                                                                                                                                                                                                                                     >
                                                                                                                                                                                                                                                                                         {user.status === 'SUSPENDED' ? <Unlock size={18} /> : <Lock size={18} />}
@@ -226,6 +264,17 @@ export default function UsersPage() {
                                                                                                     </div>
                                                                                 </div>
                                                             </div>
+
+                                                            {/* User Modal */}
+                                                            <UserModal
+                                                                                isOpen={showModal}
+                                                                                onClose={() => setShowModal(false)}
+                                                                                user={selectedUser}
+                                                                                onSuccess={fetchUsers}
+                                                                                chains={chains}
+                                                                                stores={stores}
+                                                                                roles={roles}
+                                                            />
                                         </ProtectedRoute>
                     );
 }

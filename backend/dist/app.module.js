@@ -14,6 +14,7 @@ const prisma_module_1 = require("./prisma/prisma.module");
 const cache_module_1 = require("./cache/cache.module");
 const sharding_module_1 = require("./sharding/sharding.module");
 const event_bus_module_1 = require("./event-bus/event-bus.module");
+const metrics_module_1 = require("./metrics/metrics.module");
 const health_module_1 = require("./health/health.module");
 const events_module_1 = require("./events/events.module");
 const invoices_module_1 = require("./invoices/invoices.module");
@@ -45,6 +46,7 @@ exports.AppModule = AppModule = __decorate([
             cache_module_1.CacheModule,
             sharding_module_1.ShardingModule,
             event_bus_module_1.EventBusModule,
+            metrics_module_1.MetricsModule,
             health_module_1.HealthModule,
             auth_module_1.AuthModule,
             chains_module_1.ChainsModule,

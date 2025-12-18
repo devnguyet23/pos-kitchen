@@ -12,6 +12,7 @@ const serve_static_1 = require("@nestjs/serve-static");
 const path_1 = require("path");
 const prisma_module_1 = require("./prisma/prisma.module");
 const cache_module_1 = require("./cache/cache.module");
+const health_module_1 = require("./health/health.module");
 const events_module_1 = require("./events/events.module");
 const invoices_module_1 = require("./invoices/invoices.module");
 const reports_module_1 = require("./reports/reports.module");
@@ -40,6 +41,7 @@ exports.AppModule = AppModule = __decorate([
             }),
             prisma_module_1.PrismaModule,
             cache_module_1.CacheModule,
+            health_module_1.HealthModule,
             auth_module_1.AuthModule,
             chains_module_1.ChainsModule,
             stores_management_module_1.StoresManagementModule,

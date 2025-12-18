@@ -1,0 +1,463 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Table {
+  id        Int      @id @default(autoincrement())
+  name      String
+  status    String   @default("AVAILABLE") // AVAILABLE, OCCUPIED, RESERVED
+  x         Int      @default(0) // For map positioning
+  y         Int      @default(0)
+  seats     Int      @default(4)
+  orders    Order[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id          Int        @id @default(autoincrement())
+  name        String
+  description String?
+  parentId    Int?
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  products    Product[]
+  chainId     Int?
+  chain       Chain?     @relation(fields: [chainId], references: [id])
+  createdAt   DateTime   @default(now())
+
+  @@index([chainId, parentId])
+  @@index([chainId, name])
+  @@map("categories")
+}
+
+model Product {
+  id          Int            @id @default(autoincrement())
+  name        String
+  price       Float
+  image       String?        // URL or base64 image
+  status      Int            @default(1) // 0: hidden, 1: visible
+  categoryId  Int
+  category    Category       @relation(fields: [categoryId], references: [id])
+  modifiers   ProductModifier[]
+  recipes     Recipe[]
+  orderItems  OrderItem[]
+  chainId     Int?
+  chain       Chain?         @relation(fields: [chainId], references: [id])
+  createdAt   DateTime       @default(now())
+
+  @@index([chainId, categoryId])
+  @@index([chainId, status])
+  @@index([chainId, name])
+  @@map("products")
+}
+
+model Modifier {
+  id        Int      @id @default(autoincrement())
+  name      String
+  options   String   // JSON string of options
+  products  ProductModifier[]
+  chainId   Int?
+  chain     Chain?   @relation(fields: [chainId], references: [id])
+
+  @@index([chainId])
+  @@map("modifiers")
+}
+
+model ProductModifier {
+  productId  Int
+  modifierId Int
+  product    Product  @relation(fields: [productId], references: [id])
+  modifier   Modifier @relation(fields: [modifierId], references: [id])
+
+  @@id([productId, modifierId])
+}
+
+model Ingredient {
+  id        Int      @id @default(autoincrement())
+  name      String
+  unit      String   // g, ml, pcs
+  stock     Float    @default(0)
+  cost      Float    @default(0)
+  recipes   Recipe[]
+}
+
+model Recipe {
+  id           Int        @id @default(autoincrement())
+  productId    Int
+  product      Product    @relation(fields: [productId], references: [id])
+  ingredientId Int
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+  quantity     Float
+}
+
+model Order {
+  id         Int         @id @default(autoincrement())
+  tableId    Int?
+  table      Table?      @relation(fields: [tableId], references: [id])
+  status     String      @default("PENDING") // PENDING, CONFIRMED, PREPARING, READY, COMPLETED, CANCELLED
+  items      OrderItem[]
+  total      Float       @default(0)
+  chainId    Int?        // Denormalized for faster queries
+  chain      Chain?      @relation(fields: [chainId], references: [id])
+  storeId    Int?
+  store      Store?      @relation(fields: [storeId], references: [id])
+  userId     Int?
+  user       User?       @relation("UserOrders", fields: [userId], references: [id])
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  invoice    Invoice?
+
+  @@index([chainId, storeId, createdAt])
+  @@index([storeId, createdAt])
+  @@index([status, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  orderId   Int
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  notes     String? // "No sugar", etc.
+  status    String  @default("PENDING") // PENDING, COOKING, DONE
+  chainId   Int?    // Denormalized for analytics
+  storeId   Int?    // Denormalized for store reports
+
+  @@index([chainId, storeId])
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model Invoice {
+  id            Int      @id @default(autoincrement())
+  orderId       Int      @unique
+  order         Order    @relation(fields: [orderId], references: [id])
+  subtotal      Float
+  tax           Float    @default(0)
+  serviceCharge Float    @default(0)
+  total         Float
+  paymentMethod String   @default("CASH")
+  chainId       Int?     // Denormalized for faster queries
+  chain         Chain?   @relation(fields: [chainId], references: [id])
+  storeId       Int?
+  store         Store?   @relation(fields: [storeId], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@index([chainId, storeId, createdAt])
+  @@index([storeId, createdAt])
+  @@map("invoices")
+}
+
+// =============================================
+// PERMISSION SYSTEM MODELS
+// =============================================
+
+enum ChainStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum StoreStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+// Chuỗi cửa hàng (Multi-tenant)
+model Chain {
+  id          Int         @id @default(autoincrement())
+  name        String
+  code        String      @unique
+  status      ChainStatus @default(ACTIVE)
+  logoUrl     String?
+  description String?     @db.Text
+  email       String?
+  phone       String?
+  website     String?
+  address     String?     @db.Text
+  taxCode     String?
+  settings    Json?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  stores     Store[]
+  users      User[]
+  userRoles  UserRole[]
+  categories Category[]
+  products   Product[]
+  modifiers  Modifier[]
+  orders     Order[]     // NEW: Direct relation for denormalization
+  invoices   Invoice[]   // NEW: Direct relation for denormalization
+
+  @@index([status])
+  @@map("chains")
+}
+
+// Cửa hàng thuộc chuỗi
+model Store {
+  id          Int         @id @default(autoincrement())
+  chainId     Int
+  chain       Chain       @relation(fields: [chainId], references: [id], onDelete: Cascade)
+  name        String
+  code        String      @unique
+  address     String?     @db.Text
+  ward        String?
+  district    String?
+  city        String?
+  phone       String?
+  email       String?
+  latitude    Decimal?    @db.Decimal(10, 8)
+  longitude   Decimal?    @db.Decimal(11, 8)
+  status      StoreStatus @default(ACTIVE)
+  openingTime String?
+  closingTime String?
+  settings    Json?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  users      User[]
+  userRoles  UserRole[]
+  shifts     Shift[]
+  orders     Order[]
+  invoices   Invoice[]
+  storeOrders StoreOrder[]
+
+  @@index([chainId])
+  @@map("stores")
+}
+
+// Người dùng hệ thống
+model User {
+  id                  Int        @id @default(autoincrement())
+  chainId             Int?
+  chain               Chain?     @relation(fields: [chainId], references: [id], onDelete: Cascade)
+  storeId             Int?
+  store               Store?     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  username            String     @unique
+  email               String     @unique
+  password            String
+  fullName            String
+  phone               String?
+  avatarUrl           String?
+  dateOfBirth         DateTime?
+  gender              String?
+  address             String?    @db.Text
+  citizenId           String?
+  status              UserStatus @default(ACTIVE)
+  twoFactorEnabled    Boolean    @default(false)
+  twoFactorSecret     String?
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+  passwordChangedAt   DateTime?
+  failedLoginAttempts Int        @default(0)
+  lockedUntil         DateTime?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  userRoles              UserRole[]
+  shifts                 Shift[]              @relation("UserShifts")
+  closedShifts           Shift[]              @relation("ClosedByUser")
+  auditLogs              AuditLog[]
+  assignedRoles          UserRole[]           @relation("AssignedByUser")
+  createdConstraints     PermissionConstraint[] @relation("ConstraintCreator")
+  permissionConstraints  PermissionConstraint[] @relation("UserConstraints")
+  storeOrders            StoreOrder[]
+  orders                 Order[]              @relation("UserOrders")
+
+  @@index([chainId])
+  @@index([storeId])
+  @@index([username])
+  @@index([email])
+  @@map("users")
+}
+
+// Vai trò trong hệ thống
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        String
+  code        String   @unique // super_admin, chain_owner, cashier, etc.
+  description String?  @db.Text
+  level       Int      // 1=System, 2=Chain, 3=Store
+  isSystem    Boolean  @default(false)
+  color       String?
+  icon        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  userRoles   UserRole[]
+
+  @@index([code])
+  @@index([level])
+  @@map("roles")
+}
+
+// Quyền hạn
+model Permission {
+  id          Int      @id @default(autoincrement())
+  name        String
+  code        String   @unique // view_products, create_order, etc.
+  module      String   // chain, store, sales, inventory, etc.
+  description String?  @db.Text
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  roles       RolePermission[]
+  constraints PermissionConstraint[]
+
+  @@index([code])
+  @@index([module])
+  @@map("permissions")
+}
+
+// Liên kết Role - Permission
+model RolePermission {
+  id           Int        @id @default(autoincrement())
+  roleId       Int
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId Int
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// Gán vai trò cho user với scope
+model UserRole {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId     Int
+  role       Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  chainId    Int?      // null = System level
+  chain      Chain?    @relation(fields: [chainId], references: [id], onDelete: Cascade)
+  storeId    Int?      // null = Chain level
+  store      Store?    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  assignedBy Int?
+  assignedByUser User? @relation("AssignedByUser", fields: [assignedBy], references: [id], onDelete: SetNull)
+  assignedAt DateTime  @default(now())
+  expiresAt  DateTime?
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+
+  @@unique([userId, roleId, chainId, storeId])
+  @@map("user_roles")
+}
+
+// Giới hạn quyền đặc biệt (ví dụ: hoàn trả max 500k)
+model PermissionConstraint {
+  id              Int        @id @default(autoincrement())
+  userId          Int
+  user            User       @relation("UserConstraints", fields: [userId], references: [id], onDelete: Cascade)
+  permissionId    Int
+  permission      Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  constraintType  String     // max_amount, max_percentage, time_range
+  constraintValue Json       // {"max": 500000} or {"max_percent": 15}
+  isActive        Boolean    @default(true)
+  createdBy       Int?
+  createdByUser   User?      @relation("ConstraintCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@map("permission_constraints")
+}
+
+// Ca làm việc
+model Shift {
+  id           Int         @id @default(autoincrement())
+  storeId      Int
+  store        Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  userId       Int
+  user         User        @relation("UserShifts", fields: [userId], references: [id], onDelete: Cascade)
+  shiftCode    String      @unique
+  openedAt     DateTime    @default(now())
+  closedAt     DateTime?
+  openingCash  Decimal     @db.Decimal(15, 2)
+  closingCash  Decimal?    @db.Decimal(15, 2)
+  expectedCash Decimal?    @db.Decimal(15, 2)
+  cashDifference Decimal?  @db.Decimal(15, 2)
+  totalSales   Decimal     @default(0) @db.Decimal(15, 2)
+  totalOrders  Int         @default(0)
+  totalRefunds Decimal     @default(0) @db.Decimal(15, 2)
+  status       ShiftStatus @default(OPEN)
+  note         String?     @db.Text
+  closedBy     Int?
+  closedByUser User?       @relation("ClosedByUser", fields: [closedBy], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([storeId])
+  @@index([status])
+  @@map("shifts")
+}
+
+// Nhật ký hoạt động
+model AuditLog {
+  id             Int      @id @default(autoincrement())
+  userId         Int?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action         String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT
+  model          String   // User, Order, Product, etc.
+  modelId        Int?
+  oldValues      Json?
+  newValues      Json?
+  ipAddress      String?
+  userAgent      String?  @db.Text
+  requestUrl     String?
+  requestMethod  String?
+  responseStatus Int?
+  executionTime  Int?     // milliseconds
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([model])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// Đơn hàng theo Store (cho permission system)
+model StoreOrder {
+  id           Int      @id @default(autoincrement())
+  storeId      Int
+  store        Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderCode    String   @unique
+  subtotal     Decimal  @db.Decimal(15, 2)
+  discount     Decimal  @default(0) @db.Decimal(15, 2)
+  tax          Decimal  @default(0) @db.Decimal(15, 2)
+  total        Decimal  @db.Decimal(15, 2)
+  status       String   @default("PENDING") // PENDING, COMPLETED, CANCELLED, REFUNDED
+  shiftId      Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([storeId])
+  @@index([orderCode])
+  @@map("store_orders")
+}

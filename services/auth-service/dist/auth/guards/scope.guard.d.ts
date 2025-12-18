@@ -1,0 +1,6 @@
+import { CanActivate, ExecutionContext } from '@nestjs/common';
+export declare class ScopeGuard implements CanActivate {
+    canActivate(context: ExecutionContext): boolean;
+    private getRequestedChainId;
+    private getRequestedStoreId;
+}

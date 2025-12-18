@@ -99,6 +99,28 @@ services:
       postgres:
         condition: service_healthy
 
+  # RabbitMQ - Message Queue (Phase 4)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: pos_rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"   # AMQP protocol
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: pos_user
+      RABBITMQ_DEFAULT_PASS: pos_password
+      RABBITMQ_DEFAULT_VHOST: pos_vhost
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - pos-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   # ================================================================
   # SERVICE LAYER
   # ================================================================
@@ -236,4 +258,5 @@ volumes:
   postgres_data:
   postgres_replica_data:
   redis_data:
+  rabbitmq_data:
 

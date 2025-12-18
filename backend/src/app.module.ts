@@ -4,6 +4,7 @@ import { join } from 'path';
 import { PrismaModule } from './prisma/prisma.module';
 import { CacheModule } from './cache/cache.module';
 import { ShardingModule } from './sharding/sharding.module';
+import { EventBusModule } from './event-bus/event-bus.module';
 import { HealthModule } from './health/health.module';
 import { EventsModule } from './events/events.module';
 import { InvoicesModule } from './invoices/invoices.module';
@@ -32,6 +33,7 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module';
                                         PrismaModule,
                                         CacheModule,  // Global Redis caching
                                         ShardingModule, // Database sharding (Phase 3)
+                                        EventBusModule, // Message queue (Phase 4)
                                         HealthModule, // Health checks for microservices
                                         AuthModule,
                                         // Permission system modules

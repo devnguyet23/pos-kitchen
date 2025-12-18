@@ -5,12 +5,12 @@ export declare class UsersController {
     private readonly usersService;
     constructor(usersService: UsersService);
     create(createUserDto: CreateUserDto, user: CurrentUserData): Promise<{
+        status: import(".prisma/client").$Enums.UserStatus;
         id: number;
         username: string;
         email: string;
         chainId: number;
         storeId: number;
-        status: import(".prisma/client").$Enums.UserStatus;
         createdAt: Date;
         phone: string;
         fullName: string;
@@ -19,12 +19,12 @@ export declare class UsersController {
     }>;
     findAll(user: CurrentUserData, page?: string, pageSize?: string, search?: string, status?: string, chainId?: string, storeId?: string, roleCode?: string): Promise<{
         data: {
+            status: import(".prisma/client").$Enums.UserStatus;
             id: number;
             username: string;
             email: string;
             chainId: number;
             storeId: number;
-            status: import(".prisma/client").$Enums.UserStatus;
             createdAt: Date;
             phone: string;
             userRoles: ({
@@ -66,12 +66,12 @@ export declare class UsersController {
             name: string;
             code: string;
         };
+        status: import(".prisma/client").$Enums.UserStatus;
         id: number;
         username: string;
         email: string;
         chainId: number;
         storeId: number;
-        status: import(".prisma/client").$Enums.UserStatus;
         createdAt: Date;
         phone: string;
         userRoles: ({
@@ -121,12 +121,12 @@ export declare class UsersController {
         lastLoginAt: Date;
     }>;
     update(id: number, updateUserDto: UpdateUserDto, user: CurrentUserData): Promise<{
+        status: import(".prisma/client").$Enums.UserStatus;
         id: number;
         username: string;
         email: string;
         chainId: number;
         storeId: number;
-        status: import(".prisma/client").$Enums.UserStatus;
         createdAt: Date;
         phone: string;
         fullName: string;
@@ -134,12 +134,12 @@ export declare class UsersController {
         lastLoginAt: Date;
     }>;
     remove(id: number, user: CurrentUserData): Promise<{
+        status: import(".prisma/client").$Enums.UserStatus;
         id: number;
         username: string;
         email: string;
         chainId: number | null;
         storeId: number | null;
-        status: import(".prisma/client").$Enums.UserStatus;
         createdAt: Date;
         updatedAt: Date;
         phone: string | null;
@@ -192,12 +192,12 @@ export declare class UsersController {
         message: string;
     }>;
     lockUser(id: number, user: CurrentUserData): Promise<{
+        status: import(".prisma/client").$Enums.UserStatus;
         id: number;
         username: string;
         email: string;
         chainId: number;
         storeId: number;
-        status: import(".prisma/client").$Enums.UserStatus;
         createdAt: Date;
         phone: string;
         fullName: string;
@@ -205,12 +205,12 @@ export declare class UsersController {
         lastLoginAt: Date;
     }>;
     unlockUser(id: number, user: CurrentUserData): Promise<{
+        status: import(".prisma/client").$Enums.UserStatus;
         id: number;
         username: string;
         email: string;
         chainId: number;
         storeId: number;
-        status: import(".prisma/client").$Enums.UserStatus;
         createdAt: Date;
         phone: string;
         fullName: string;

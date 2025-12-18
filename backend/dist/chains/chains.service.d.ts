@@ -4,10 +4,10 @@ export declare class ChainsService {
     private prisma;
     constructor(prisma: PrismaService);
     create(createChainDto: CreateChainDto): Promise<{
+        status: import(".prisma/client").$Enums.ChainStatus;
         description: string | null;
         id: number;
         email: string | null;
-        status: import(".prisma/client").$Enums.ChainStatus;
         createdAt: Date;
         updatedAt: Date;
         name: string;
@@ -31,10 +31,10 @@ export declare class ChainsService {
                 users: number;
             };
         } & {
+            status: import(".prisma/client").$Enums.ChainStatus;
             description: string | null;
             id: number;
             email: string | null;
-            status: import(".prisma/client").$Enums.ChainStatus;
             createdAt: Date;
             updatedAt: Date;
             name: string;
@@ -57,16 +57,16 @@ export declare class ChainsService {
             users: number;
         };
         stores: {
-            id: number;
             status: import(".prisma/client").$Enums.StoreStatus;
+            id: number;
             name: string;
             code: string;
         }[];
     } & {
+        status: import(".prisma/client").$Enums.ChainStatus;
         description: string | null;
         id: number;
         email: string | null;
-        status: import(".prisma/client").$Enums.ChainStatus;
         createdAt: Date;
         updatedAt: Date;
         name: string;
@@ -79,10 +79,10 @@ export declare class ChainsService {
         settings: import("@prisma/client/runtime/library").JsonValue | null;
     }>;
     update(id: number, updateChainDto: UpdateChainDto): Promise<{
+        status: import(".prisma/client").$Enums.ChainStatus;
         description: string | null;
         id: number;
         email: string | null;
-        status: import(".prisma/client").$Enums.ChainStatus;
         createdAt: Date;
         updatedAt: Date;
         name: string;
@@ -95,10 +95,10 @@ export declare class ChainsService {
         settings: import("@prisma/client/runtime/library").JsonValue | null;
     }>;
     remove(id: number): Promise<{
+        status: import(".prisma/client").$Enums.ChainStatus;
         description: string | null;
         id: number;
         email: string | null;
-        status: import(".prisma/client").$Enums.ChainStatus;
         createdAt: Date;
         updatedAt: Date;
         name: string;

@@ -3,10 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import { CurrentUserData } from '../auth/decorators/current-user.decorator';
 import { BaseTenantService } from '../common/base-tenant.service';
+import { CacheService } from '../cache/cache.service';
 
 @Injectable()
 export class CategoriesService extends BaseTenantService {
-                    constructor(private prisma: PrismaService) {
+                    constructor(
+                                        private prisma: PrismaService,
+                                        private cacheService: CacheService,
+                    ) {
                                         super();
                     }
 
@@ -40,7 +44,7 @@ export class CategoriesService extends BaseTenantService {
                                                             }
                                         }
 
-                                        return this.prisma.category.create({
+                                        const result = await this.prisma.category.create({
                                                             data: {
                                                                                 name: createCategoryDto.name,
                                                                                 parentId: createCategoryDto.parentId || null,
@@ -52,33 +56,51 @@ export class CategoriesService extends BaseTenantService {
                                                                                 _count: { select: { products: true } },
                                                             },
                                         });
+
+                                        // Invalidate cache
+                                        await this.cacheService.invalidateCategories(user?.chainId);
+                                        return result;
                     }
 
-                    findAll(user?: CurrentUserData) {
-                                        // Build where clause with tenant filter
-                                        const where: { chainId?: number } = {};
+                    async findAll(user?: CurrentUserData) {
+                                        // Build cache key based on chain
+                                        const chainId = user?.chainId || 0;
+                                        const cacheKey = this.cacheService.buildKey(
+                                                            CacheService.PREFIX.CATEGORIES,
+                                                            'chain',
+                                                            chainId,
+                                                            'all'
+                                        );
 
-                                        if (user) {
-                                                            const tenantFilter = this.getChainFilter(user);
-                                                            if (tenantFilter.chainId) {
-                                                                                where.chainId = tenantFilter.chainId;
-                                                            }
-                                        }
-
-                                        return this.prisma.category.findMany({
-                                                            where,
-                                                            include: {
-                                                                                parent: true,
-                                                                                children: {
-                                                                                                    include: {
-                                                                                                                        children: true,
-                                                                                                                        _count: { select: { products: true } },
+                                        // Use cache-aside pattern
+                                        return this.cacheService.getOrSet(
+                                                            cacheKey,
+                                                            async () => {
+                                                                                const where: { chainId?: number } = {};
+                                                                                if (user) {
+                                                                                                    const tenantFilter = this.getChainFilter(user);
+                                                                                                    if (tenantFilter.chainId) {
+                                                                                                                        where.chainId = tenantFilter.chainId;
                                                                                                     }
-                                                                                },
-                                                                                _count: { select: { products: true } },
+                                                                                }
+
+                                                                                return this.prisma.category.findMany({
+                                                                                                    where,
+                                                                                                    include: {
+                                                                                                                        parent: true,
+                                                                                                                        children: {
+                                                                                                                                            include: {
+                                                                                                                                                                children: true,
+                                                                                                                                                                _count: { select: { products: true } },
+                                                                                                                                            }
+                                                                                                                        },
+                                                                                                                        _count: { select: { products: true } },
+                                                                                                    },
+                                                                                                    orderBy: { id: 'asc' },
+                                                                                });
                                                             },
-                                                            orderBy: { id: 'asc' },
-                                        });
+                                                            CacheService.TTL.LONG  // 15 minutes cache
+                                        );
                     }
 
                     async findOne(id: number) {
@@ -129,7 +151,7 @@ export class CategoriesService extends BaseTenantService {
                                                             }
                                         }
 
-                                        return this.prisma.category.update({
+                                        const result = await this.prisma.category.update({
                                                             where: { id },
                                                             data: updateCategoryDto,
                                                             include: {
@@ -138,6 +160,10 @@ export class CategoriesService extends BaseTenantService {
                                                                                 _count: { select: { products: true } },
                                                             },
                                         });
+
+                                        // Invalidate cache
+                                        await this.cacheService.invalidateCategories(result.chainId ?? undefined);
+                                        return result;
                     }
 
                     async remove(id: number) {
@@ -165,8 +191,12 @@ export class CategoriesService extends BaseTenantService {
                                                             );
                                         }
 
-                                        return this.prisma.category.delete({
+                                        const result = await this.prisma.category.delete({
                                                             where: { id },
                                         });
+
+                                        // Invalidate cache
+                                        await this.cacheService.invalidateCategories(category.chainId ?? undefined);
+                                        return result;
                     }
 }

@@ -11,10 +11,10 @@ export declare class StoresManagementService {
             code: string;
         };
     } & {
+        status: import(".prisma/client").$Enums.StoreStatus;
         id: number;
         email: string | null;
         chainId: number;
-        status: import(".prisma/client").$Enums.StoreStatus;
         createdAt: Date;
         updatedAt: Date;
         name: string;
@@ -48,10 +48,10 @@ export declare class StoresManagementService {
                 shifts: number;
             };
         } & {
+            status: import(".prisma/client").$Enums.StoreStatus;
             id: number;
             email: string | null;
             chainId: number;
-            status: import(".prisma/client").$Enums.StoreStatus;
             createdAt: Date;
             updatedAt: Date;
             name: string;
@@ -83,16 +83,16 @@ export declare class StoresManagementService {
             shifts: number;
         };
         users: {
+            status: import(".prisma/client").$Enums.UserStatus;
             id: number;
             username: string;
-            status: import(".prisma/client").$Enums.UserStatus;
             fullName: string;
         }[];
     } & {
+        status: import(".prisma/client").$Enums.StoreStatus;
         id: number;
         email: string | null;
         chainId: number;
-        status: import(".prisma/client").$Enums.StoreStatus;
         createdAt: Date;
         updatedAt: Date;
         name: string;
@@ -115,10 +115,10 @@ export declare class StoresManagementService {
             code: string;
         };
     } & {
+        status: import(".prisma/client").$Enums.StoreStatus;
         id: number;
         email: string | null;
         chainId: number;
-        status: import(".prisma/client").$Enums.StoreStatus;
         createdAt: Date;
         updatedAt: Date;
         name: string;
@@ -135,10 +135,10 @@ export declare class StoresManagementService {
         closingTime: string | null;
     }>;
     remove(id: number, user: CurrentUserData): Promise<{
+        status: import(".prisma/client").$Enums.StoreStatus;
         id: number;
         email: string | null;
         chainId: number;
-        status: import(".prisma/client").$Enums.StoreStatus;
         createdAt: Date;
         updatedAt: Date;
         name: string;

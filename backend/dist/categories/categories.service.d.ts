@@ -2,9 +2,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import { CurrentUserData } from '../auth/decorators/current-user.decorator';
 import { BaseTenantService } from '../common/base-tenant.service';
+import { CacheService } from '../cache/cache.service';
 export declare class CategoriesService extends BaseTenantService {
     private prisma;
-    constructor(prisma: PrismaService);
+    private cacheService;
+    constructor(prisma: PrismaService, cacheService: CacheService);
     private getHierarchyDepth;
     create(createCategoryDto: CreateCategoryDto, user?: CurrentUserData): Promise<{
         _count: {
@@ -34,7 +36,7 @@ export declare class CategoriesService extends BaseTenantService {
         name: string;
         parentId: number | null;
     }>;
-    findAll(user?: CurrentUserData): import(".prisma/client").Prisma.PrismaPromise<({
+    findAll(user?: CurrentUserData): Promise<({
         _count: {
             products: number;
         };
@@ -75,19 +77,19 @@ export declare class CategoriesService extends BaseTenantService {
         parentId: number | null;
     })[]>;
     findOne(id: number): Promise<{
-        _count: {
-            products: number;
-        };
         products: {
+            status: number;
             id: number;
             chainId: number | null;
-            status: number;
             createdAt: Date;
             name: string;
             price: number;
             image: string | null;
             categoryId: number;
         }[];
+        _count: {
+            products: number;
+        };
         parent: {
             description: string | null;
             id: number;

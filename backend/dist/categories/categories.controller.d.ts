@@ -32,7 +32,7 @@ export declare class CategoriesController {
         name: string;
         parentId: number | null;
     }>;
-    findAll(user: CurrentUserData): import(".prisma/client").Prisma.PrismaPromise<({
+    findAll(user: CurrentUserData): Promise<({
         _count: {
             products: number;
         };
@@ -73,19 +73,19 @@ export declare class CategoriesController {
         parentId: number | null;
     })[]>;
     findOne(id: number): Promise<{
-        _count: {
-            products: number;
-        };
         products: {
+            status: number;
             id: number;
             chainId: number | null;
-            status: number;
             createdAt: Date;
             name: string;
             price: number;
             image: string | null;
             categoryId: number;
         }[];
+        _count: {
+            products: number;
+        };
         parent: {
             description: string | null;
             id: number;

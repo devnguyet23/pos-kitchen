@@ -26,9 +26,9 @@ export declare class ProductsService extends BaseTenantService {
             modifierId: number;
         })[];
     } & {
+        status: number;
         id: number;
         chainId: number | null;
-        status: number;
         createdAt: Date;
         name: string;
         price: number;
@@ -65,9 +65,9 @@ export declare class ProductsService extends BaseTenantService {
                 modifierId: number;
             })[];
         } & {
+            status: number;
             id: number;
             chainId: number | null;
-            status: number;
             createdAt: Date;
             name: string;
             price: number;
@@ -102,9 +102,9 @@ export declare class ProductsService extends BaseTenantService {
             modifierId: number;
         })[];
     } & {
+        status: number;
         id: number;
         chainId: number | null;
-        status: number;
         createdAt: Date;
         name: string;
         price: number;
@@ -132,9 +132,9 @@ export declare class ProductsService extends BaseTenantService {
             modifierId: number;
         })[];
     } & {
+        status: number;
         id: number;
         chainId: number | null;
-        status: number;
         createdAt: Date;
         name: string;
         price: number;
@@ -142,9 +142,9 @@ export declare class ProductsService extends BaseTenantService {
         categoryId: number;
     }>;
     remove(id: number): Promise<{
+        status: number;
         id: number;
         chainId: number | null;
-        status: number;
         createdAt: Date;
         name: string;
         price: number;

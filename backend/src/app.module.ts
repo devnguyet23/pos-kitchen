@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { PrismaModule } from './prisma/prisma.module';
+import { CacheModule } from './cache/cache.module';
 import { EventsModule } from './events/events.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { ReportsModule } from './reports/reports.module';
@@ -27,6 +28,7 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module';
                                                             serveRoot: '/uploads',
                                         }),
                                         PrismaModule,
+                                        CacheModule,  // Global Redis caching
                                         AuthModule,
                                         // Permission system modules
                                         ChainsModule,

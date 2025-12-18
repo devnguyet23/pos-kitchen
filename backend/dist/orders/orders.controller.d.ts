@@ -7,9 +7,9 @@ export declare class OrdersController {
     create(createOrderDto: CreateOrderDto, user: CurrentUserData): Promise<{
         items: ({
             product: {
+                status: number;
                 id: number;
                 chainId: number | null;
-                status: number;
                 createdAt: Date;
                 name: string;
                 price: number;
@@ -17,21 +17,21 @@ export declare class OrdersController {
                 categoryId: number;
             };
         } & {
+            status: string;
             orderId: number;
             id: number;
             chainId: number | null;
             storeId: number | null;
-            status: string;
             productId: number;
             quantity: number;
             notes: string | null;
         })[];
     } & {
+        status: string;
         tableId: number | null;
         id: number;
         chainId: number | null;
         storeId: number | null;
-        status: string;
         total: number;
         userId: number | null;
         createdAt: Date;
@@ -39,8 +39,8 @@ export declare class OrdersController {
     }>;
     findAll(user: CurrentUserData): import(".prisma/client").Prisma.PrismaPromise<({
         table: {
-            id: number;
             status: string;
+            id: number;
             createdAt: Date;
             updatedAt: Date;
             name: string;
@@ -50,9 +50,9 @@ export declare class OrdersController {
         };
         items: ({
             product: {
+                status: number;
                 id: number;
                 chainId: number | null;
-                status: number;
                 createdAt: Date;
                 name: string;
                 price: number;
@@ -60,21 +60,21 @@ export declare class OrdersController {
                 categoryId: number;
             };
         } & {
+            status: string;
             orderId: number;
             id: number;
             chainId: number | null;
             storeId: number | null;
-            status: string;
             productId: number;
             quantity: number;
             notes: string | null;
         })[];
     } & {
+        status: string;
         tableId: number | null;
         id: number;
         chainId: number | null;
         storeId: number | null;
-        status: string;
         total: number;
         userId: number | null;
         createdAt: Date;

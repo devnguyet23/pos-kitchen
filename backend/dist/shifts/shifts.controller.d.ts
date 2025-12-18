@@ -17,9 +17,9 @@ export declare class ShiftsController {
             fullName: string;
         };
     } & {
+        status: import(".prisma/client").$Enums.ShiftStatus;
         id: number;
         storeId: number;
-        status: import(".prisma/client").$Enums.ShiftStatus;
         userId: number;
         createdAt: Date;
         updatedAt: Date;
@@ -51,9 +51,9 @@ export declare class ShiftsController {
             fullName: string;
         };
     } & {
+        status: import(".prisma/client").$Enums.ShiftStatus;
         id: number;
         storeId: number;
-        status: import(".prisma/client").$Enums.ShiftStatus;
         userId: number;
         createdAt: Date;
         updatedAt: Date;
@@ -88,9 +88,9 @@ export declare class ShiftsController {
                 fullName: string;
             };
         } & {
+            status: import(".prisma/client").$Enums.ShiftStatus;
             id: number;
             storeId: number;
-            status: import(".prisma/client").$Enums.ShiftStatus;
             userId: number;
             createdAt: Date;
             updatedAt: Date;
@@ -119,9 +119,9 @@ export declare class ShiftsController {
             code: string;
         };
     } & {
+        status: import(".prisma/client").$Enums.ShiftStatus;
         id: number;
         storeId: number;
-        status: import(".prisma/client").$Enums.ShiftStatus;
         userId: number;
         createdAt: Date;
         updatedAt: Date;
@@ -146,9 +146,9 @@ export declare class ShiftsController {
                 code: string;
             };
         } & {
+            status: import(".prisma/client").$Enums.ShiftStatus;
             id: number;
             storeId: number;
-            status: import(".prisma/client").$Enums.ShiftStatus;
             userId: number;
             createdAt: Date;
             updatedAt: Date;
@@ -185,9 +185,9 @@ export declare class ShiftsController {
             fullName: string;
         };
     } & {
+        status: import(".prisma/client").$Enums.ShiftStatus;
         id: number;
         storeId: number;
-        status: import(".prisma/client").$Enums.ShiftStatus;
         userId: number;
         createdAt: Date;
         updatedAt: Date;

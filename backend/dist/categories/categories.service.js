@@ -13,10 +13,12 @@ exports.CategoriesService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const base_tenant_service_1 = require("../common/base-tenant.service");
+const cache_service_1 = require("../cache/cache.service");
 let CategoriesService = class CategoriesService extends base_tenant_service_1.BaseTenantService {
-    constructor(prisma) {
+    constructor(prisma, cacheService) {
         super();
         this.prisma = prisma;
+        this.cacheService = cacheService;
     }
     async getHierarchyDepth(parentId, currentDepth = 1) {
         const parent = await this.prisma.category.findUnique({
@@ -42,7 +44,7 @@ let CategoriesService = class CategoriesService extends base_tenant_service_1.Ba
                 throw new common_1.BadRequestException('Chỉ hỗ trợ tối đa 3 cấp danh mục');
             }
         }
-        return this.prisma.category.create({
+        const result = await this.prisma.category.create({
             data: Object.assign({ name: createCategoryDto.name, parentId: createCategoryDto.parentId || null }, ((user === null || user === void 0 ? void 0 : user.chainId) && { chainId: user.chainId })),
             include: {
                 parent: true,
@@ -50,29 +52,35 @@ let CategoriesService = class CategoriesService extends base_tenant_service_1.Ba
                 _count: { select: { products: true } },
             },
         });
+        await this.cacheService.invalidateCategories(user === null || user === void 0 ? void 0 : user.chainId);
+        return result;
     }
-    findAll(user) {
-        const where = {};
-        if (user) {
-            const tenantFilter = this.getChainFilter(user);
-            if (tenantFilter.chainId) {
-                where.chainId = tenantFilter.chainId;
+    async findAll(user) {
+        const chainId = (user === null || user === void 0 ? void 0 : user.chainId) || 0;
+        const cacheKey = this.cacheService.buildKey(cache_service_1.CacheService.PREFIX.CATEGORIES, 'chain', chainId, 'all');
+        return this.cacheService.getOrSet(cacheKey, async () => {
+            const where = {};
+            if (user) {
+                const tenantFilter = this.getChainFilter(user);
+                if (tenantFilter.chainId) {
+                    where.chainId = tenantFilter.chainId;
+                }
             }
-        }
-        return this.prisma.category.findMany({
-            where,
-            include: {
-                parent: true,
-                children: {
-                    include: {
-                        children: true,
-                        _count: { select: { products: true } },
-                    }
+            return this.prisma.category.findMany({
+                where,
+                include: {
+                    parent: true,
+                    children: {
+                        include: {
+                            children: true,
+                            _count: { select: { products: true } },
+                        }
+                    },
+                    _count: { select: { products: true } },
                 },
-                _count: { select: { products: true } },
-            },
-            orderBy: { id: 'asc' },
-        });
+                orderBy: { id: 'asc' },
+            });
+        }, cache_service_1.CacheService.TTL.LONG);
     }
     async findOne(id) {
         const category = await this.prisma.category.findUnique({
@@ -95,6 +103,7 @@ let CategoriesService = class CategoriesService extends base_tenant_service_1.Ba
         return category;
     }
     async update(id, updateCategoryDto) {
+        var _a;
         await this.findOne(id);
         if (updateCategoryDto.parentId !== undefined) {
             if (updateCategoryDto.parentId === id) {
@@ -113,7 +122,7 @@ let CategoriesService = class CategoriesService extends base_tenant_service_1.Ba
                 }
             }
         }
-        return this.prisma.category.update({
+        const result = await this.prisma.category.update({
             where: { id },
             data: updateCategoryDto,
             include: {
@@ -122,8 +131,11 @@ let CategoriesService = class CategoriesService extends base_tenant_service_1.Ba
                 _count: { select: { products: true } },
             },
         });
+        await this.cacheService.invalidateCategories((_a = result.chainId) !== null && _a !== void 0 ? _a : undefined);
+        return result;
     }
     async remove(id) {
+        var _a;
         const category = await this.findOne(id);
         const productCount = await this.prisma.product.count({
             where: { categoryId: id },
@@ -137,14 +149,17 @@ let CategoriesService = class CategoriesService extends base_tenant_service_1.Ba
         if (childrenCount > 0) {
             throw new common_1.BadRequestException(`Không thể xóa danh mục này vì có ${childrenCount} danh mục con.`);
         }
-        return this.prisma.category.delete({
+        const result = await this.prisma.category.delete({
             where: { id },
         });
+        await this.cacheService.invalidateCategories((_a = category.chainId) !== null && _a !== void 0 ? _a : undefined);
+        return result;
     }
 };
 exports.CategoriesService = CategoriesService;
 exports.CategoriesService = CategoriesService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        cache_service_1.CacheService])
 ], CategoriesService);
 //# sourceMappingURL=categories.service.js.map

@@ -1,0 +1,1 @@
+{"version":3,"file":"sharding.module.js","sourceRoot":"","sources":["../../src/sharding/sharding.module.ts"],"names":[],"mappings":";;;;;;;;;AAAA,2CAAgD;AAChD,mEAAuD;AAWhD,IAAM,cAAc,GAApB,MAAM,cAAc;CAAI,CAAA;AAAlB,wCAAc;yBAAd,cAAc;IAL1B,IAAA,eAAM,GAAE;IACR,IAAA,eAAM,EAAC;QACY,SAAS,EAAE,CAAC,oCAAY,CAAC;QACzB,OAAO,EAAE,CAAC,oCAAY,CAAC;KAC1C,CAAC;GACW,cAAc,CAAI"}

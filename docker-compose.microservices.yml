@@ -52,6 +52,53 @@ services:
       timeout: 5s
       retries: 5
 
+  # PgBouncer - Connection Pooling (Phase 3)
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: pos_pgbouncer
+    restart: always
+    ports:
+      - "6432:6432"
+    environment:
+      DATABASE_URL: "postgres://postgres:password@postgres:5432/pos_db"
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 50
+      MIN_POOL_SIZE: 10
+      RESERVE_POOL_SIZE: 5
+      AUTH_TYPE: plain
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pos-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "6432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL Read Replica (Phase 3)
+  postgres-replica:
+    image: postgres:15-alpine
+    container_name: pos_postgres_replica
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: pos_db
+      # Replica mode - will sync from primary
+      PGDATA: /var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_replica_data:/var/lib/postgresql/data
+    networks:
+      - pos-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # ================================================================
   # SERVICE LAYER
   # ================================================================
@@ -187,4 +234,6 @@ networks:
 
 volumes:
   postgres_data:
+  postgres_replica_data:
   redis_data:
+

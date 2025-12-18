@@ -135,6 +135,7 @@ export declare class UsersController {
     }>;
     remove(id: number, user: CurrentUserData): Promise<{
         status: import(".prisma/client").$Enums.UserStatus;
+        password: string;
         id: number;
         username: string;
         email: string;
@@ -144,7 +145,6 @@ export declare class UsersController {
         updatedAt: Date;
         phone: string | null;
         address: string | null;
-        password: string;
         fullName: string;
         avatarUrl: string | null;
         dateOfBirth: Date | null;

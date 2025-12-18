@@ -3,6 +3,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { PrismaModule } from './prisma/prisma.module';
 import { CacheModule } from './cache/cache.module';
+import { ShardingModule } from './sharding/sharding.module';
 import { HealthModule } from './health/health.module';
 import { EventsModule } from './events/events.module';
 import { InvoicesModule } from './invoices/invoices.module';
@@ -30,6 +31,7 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module';
                                         }),
                                         PrismaModule,
                                         CacheModule,  // Global Redis caching
+                                        ShardingModule, // Database sharding (Phase 3)
                                         HealthModule, // Health checks for microservices
                                         AuthModule,
                                         // Permission system modules

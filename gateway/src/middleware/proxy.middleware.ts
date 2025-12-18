@@ -44,7 +44,8 @@ export class ProxyMiddleware implements NestMiddleware {
                     private proxyCache: Map<string, ReturnType<typeof createProxyMiddleware>> = new Map();
 
                     use(req: Request, res: Response, next: NextFunction) {
-                                        const path = req.path;
+                                        // Use originalUrl to get full path (req.path may be stripped by NestJS)
+                                        const path = req.originalUrl || req.path || req.url;
                                         const targetUrl = this.getTargetUrl(path);
 
                                         if (!targetUrl) {

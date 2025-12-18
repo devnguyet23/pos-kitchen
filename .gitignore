@@ -1,7 +1,29 @@
-backend/node_modules/
-frontend/node_modules/
-services/auth-service/node_modules/
-services/pos-service/node_modules/
-gateway/node_modules/
-services/shared/node_modules/
-.idea/*
+# Dependencies - ignore all node_modules everywhere
+**/node_modules
+
+# IDE
+.idea/
+
+# Build outputs
+**/dist
+**/build
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Prisma
+**/prisma/*.db
+**/prisma/*.db-journal

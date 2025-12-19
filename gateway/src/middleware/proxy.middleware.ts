@@ -29,6 +29,8 @@ export class ProxyMiddleware implements NestMiddleware {
                                         '/orders': this.posServiceUrl,
                                         '/invoices': this.posServiceUrl,
                                         '/tables': this.posServiceUrl,
+                                        '/upload': this.posServiceUrl,
+                                        '/uploads': this.posServiceUrl,
 
                                         // Report Service routes
                                         '/reports': this.reportServiceUrl,

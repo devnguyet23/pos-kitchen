@@ -1,0 +1,167 @@
+version: '3.8'
+
+# ================================================================
+# POS System - Minimal Setup for Development
+# ================================================================
+# Chỉ bao gồm các services cần thiết để chạy dự án:
+# - Data Layer: PostgreSQL, Redis
+# - Service Layer: Auth, POS Services  
+# - Gateway Layer: API Gateway
+# - Client Layer: Frontend
+# ================================================================
+
+services:
+  # ================================================================
+  # DATA LAYER
+  # ================================================================
+  
+  postgres:
+    image: postgres:15-alpine
+    container_name: pos_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: pos_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - pos-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: pos_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - pos-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ================================================================
+  # SERVICE LAYER
+  # ================================================================
+
+  # Auth Service - Handles authentication, users, roles, permissions
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: pos_auth_service
+    restart: always
+    ports:
+      - "3002:3002"
+    environment:
+      DATABASE_URL: "postgresql://postgres:password@postgres:5432/pos_db"
+      REDIS_URL: "redis://redis:6379"
+      JWT_SECRET: "pos-system-secret-key-change-in-production"
+      PORT: 3002
+      SERVICE_NAME: "auth-service"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pos-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # POS Service - Handles products, categories, orders, invoices
+  pos-service:
+    build:
+      context: ./services/pos-service
+      dockerfile: Dockerfile
+    container_name: pos_pos_service
+    restart: always
+    ports:
+      - "3003:3003"
+    environment:
+      DATABASE_URL: "postgresql://postgres:password@postgres:5432/pos_db"
+      REDIS_URL: "redis://redis:6379"
+      JWT_SECRET: "pos-system-secret-key-change-in-production"
+      PORT: 3003
+      SERVICE_NAME: "pos-service"
+    depends_on:
+      - auth-service
+    networks:
+      - pos-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ================================================================
+  # GATEWAY LAYER
+  # ================================================================
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: pos_gateway
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      AUTH_SERVICE_URL: "http://auth-service:3002"
+      POS_SERVICE_URL: "http://pos-service:3003"
+      FRONTEND_URL: "http://localhost:3000"
+    depends_on:
+      - auth-service
+      - pos-service
+    networks:
+      - pos-network
+
+  # ================================================================
+  # CLIENT LAYER
+  # ================================================================
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: pos_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:3001"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    depends_on:
+      - gateway
+    networks:
+      - pos-network
+
+# ================================================================
+# NETWORKS & VOLUMES
+# ================================================================
+
+networks:
+  pos-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
